@@ -2,7 +2,6 @@ using UnityEngine;
 using UnityEngine.AI;
 
 [RequireComponent(typeof(NavMeshAgent))]
-[RequireComponent(typeof(Animator))]
 public class MonsterAI : MonoBehaviour
 {
     public Transform playerTransform; // Drag VR Head/CameraRig here
