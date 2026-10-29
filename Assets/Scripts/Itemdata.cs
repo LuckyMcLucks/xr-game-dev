@@ -9,3 +9,4 @@ public class ItemData : ScriptableObject
     [Tooltip("Prefab must have a Collider, Rigidbody and XR Grab Interactable.")]
     public GameObject prefab;
 }
+
