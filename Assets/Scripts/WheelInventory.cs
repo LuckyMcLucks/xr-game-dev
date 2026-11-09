@@ -42,6 +42,10 @@ public class WheelInventory : MonoBehaviour
     public float deadZone = 0.4f;
     public Vector3 offsetFromHand = new Vector3(0f, 0.1f, 0.15f);
 
+    [Header("Placement")]
+    [Tooltip("How far in front of the eyes the wheel is shown (metres).")]
+    public float viewDistance = 0.45f;
+
     [Header("Pull Animation")]
     public float flyDuration = 0.2f;
 
@@ -73,8 +77,6 @@ public class WheelInventory : MonoBehaviour
     void Update()
     {
         bool pressed = openAction.action != null && openAction.action.IsPressed();
-        if (openAction.action != null && openAction.action.WasPressedThisFrame())
-            Debug.Log("Open button pressed");
         if (pressed && !open) OpenWheel();
         else if (!pressed && open) CloseWheel();
 
@@ -87,16 +89,29 @@ public class WheelInventory : MonoBehaviour
     {
         open = true;
         hovered = -1;
-        RefreshAllSlotsUI();
+
+        if (wheelRoot == null)
+        {
+            Debug.LogWarning("[WheelInventory] 'Wheel Root' is not assigned, nothing to show.");
+            return;
+        }
+
+        // Show the wheel FIRST, then refresh the icons: a UI refresh must never be
+        // able to stop the wheel from appearing.
+        PlaceWheel();
         wheelRoot.SetActive(true);
+        RefreshAllSlotsUI();
+
+        Debug.Log("[WheelInventory] Wheel opened");
     }
 
     void CloseWheel()
     {
         open = false;
-        wheelRoot.SetActive(false);
+        if (wheelRoot != null) wheelRoot.SetActive(false);
+        Debug.Log("[WheelInventory] Wheel closed");
 
-        if (hovered >= 0 && hovered < items.Length)
+        if (hovered >= 0 && items != null && hovered < items.Length)
             HandleSlotAction(hovered);
 
         hovered = -1;
@@ -105,32 +120,57 @@ public class WheelInventory : MonoBehaviour
     void UpdateHover()
     {
         if (cam == null) cam = Camera.main;
+        if (wheelRoot == null) return;
 
-        // Keep the wheel at the left hand, facing the player's head.
-        wheelRoot.transform.position = leftHand.TransformPoint(offsetFromHand);
-        if (cam)
-        {
-            wheelRoot.transform.rotation = Quaternion.LookRotation(
-                wheelRoot.transform.position - cam.transform.position, Vector3.up);
-        }
+        PlaceWheel();
 
         Vector2 stick = selectStickAction.action != null
             ? selectStickAction.action.ReadValue<Vector2>()
             : Vector2.zero;
 
+        int slotCount = items != null ? items.Length : 0;
         int newHover = -1;
-        if (stick.magnitude > deadZone && items.Length > 0)
+        if (stick.magnitude > deadZone && slotCount > 0)
         {
             // 0 deg = up, increasing clockwise.
             float angle = Mathf.Atan2(stick.x, stick.y) * Mathf.Rad2Deg;
             if (angle < 0) angle += 360f;
-            float step = 360f / items.Length;
+            float step = 360f / slotCount;
             newHover = Mathf.FloorToInt(((angle + step * 0.5f) % 360f) / step);
         }
 
         if (newHover == hovered) return;
         hovered = newHover;
         RefreshAllSlotsUI();
+    }
+
+    /// <summary>
+    /// Keeps the wheel directly in front of the player's eyes so it is always visible
+    /// while the open button is held. Falls back to the left hand when there is no camera.
+    /// </summary>
+    void PlaceWheel()
+    {
+        if (wheelRoot == null) return;
+
+        if (cam == null)
+        {
+            if (leftHand == null) return;
+            wheelRoot.transform.SetPositionAndRotation(
+                leftHand.TransformPoint(offsetFromHand), leftHand.rotation);
+            return;
+        }
+
+        Transform head = cam.transform;
+        Vector3 forward = Vector3.ProjectOnPlane(head.forward, Vector3.up);
+        if (forward.sqrMagnitude < 0.001f) forward = head.forward;
+        else forward.Normalize();
+
+        float distance = viewDistance > 0.05f ? viewDistance : 0.45f;
+        Vector3 position = head.position + forward * distance;
+
+        wheelRoot.transform.SetPositionAndRotation(
+            position,
+            Quaternion.LookRotation(position - head.position, Vector3.up));
     }
 
     // ---------------------------------------------------------------- put / pull
@@ -300,18 +340,22 @@ public class WheelInventory : MonoBehaviour
 
     void RefreshAllSlotsUI()
     {
+        if (slotImages == null) return;
         for (int i = 0; i < slotImages.Length; i++)
             UpdateSlotUI(i);
     }
 
     void UpdateSlotUI(int index)
     {
-        if (index >= slotImages.Length) return;
+        if (slotImages == null || index >= slotImages.Length) return;
 
         var img = slotImages[index];
         if (img == null) return;
 
-        bool filled = index < items.Length && items[index] != null;
+        bool filled = items != null && index < items.Length && items[index] != null;
+
+        if (filled && items[index].prefab == null)
+            Debug.LogWarning($"[WheelInventory] Slot {index} points at '{items[index].name}', which has no prefab assigned.");
 
         img.sprite = filled ? items[index].icon : null;
         img.enabled = true;
