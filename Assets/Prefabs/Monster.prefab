@@ -10,15 +10,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 00f7e5d0a393d2e4490972fe448dd929, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.25
+      value: 0.4
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 00f7e5d0a393d2e4490972fe448dd929, type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.25
+      value: 0.4
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 00f7e5d0a393d2e4490972fe448dd929, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.25
+      value: 0.4
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 00f7e5d0a393d2e4490972fe448dd929, type: 3}
       propertyPath: m_LocalPosition.x
@@ -93,7 +93,7 @@ NavMeshAgent:
   m_Enabled: 1
   m_AgentTypeID: 0
   m_Radius: 3
-  m_Speed: 1
+  m_Speed: 0.5
   m_Acceleration: 8
   avoidancePriority: 50
   m_AngularSpeed: 120
@@ -118,6 +118,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MonsterAI
   playerTransform: {fileID: 0}
+  backroomsCenterPoint: {fileID: 0}
+  stalkSpeed: 0.5
+  sprintSpeed: 2
+  sprintTriggerDistance: 8
+  jumpscareDistance: 1.6
+  faceSnapDistance: 2
+  faceHeightOffset: -2.7
+  jumpscareDuration: 2.2
+  jumpscareScreamClip: {fileID: 8300000, guid: dfa2e9269b661984aac85a81c72e2cc4, type: 3}
+  aggroScreechClip: {fileID: 8300000, guid: b9629935ce7d2e2449865cf0a3332539, type: 3}
 --- !u!95 &1155707891959897422
 Animator:
   serializedVersion: 7
