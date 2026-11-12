@@ -26,22 +26,22 @@ public class DrumPad : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
-        if (!other.CompareTag(stickTag)) return;
-        if (Time.time - lastHitTime < cooldown) return;
+        Debug.Log($"Pad touched by {other.name}, tag={other.tag}");
+
+        if (!other.CompareTag(stickTag)) { Debug.Log("-> wrong tag"); return; }
+        if (Time.time - lastHitTime < cooldown) { Debug.Log("-> cooldown"); return; }
 
         var stick = other.GetComponent<DrumStick>();
-        if (stick == null) return;
+        if (stick == null) { Debug.Log("-> no DrumStick on the collider object"); return; }
 
-        // Only count hits coming from above, moving downward into the head
         float speed = Vector3.Dot(stick.Velocity, downDirection.normalized);
+        Debug.Log($"-> downward speed={speed:F2} (needs {minHitSpeed})");
         if (speed < minHitSpeed) return;
 
         float strength = Mathf.InverseLerp(minHitSpeed, maxHitSpeed, speed);
-
-        source.pitch = Random.Range(0.97f, 1.03f); // slight variation
+        source.pitch = Random.Range(0.97f, 1.03f);
         source.PlayOneShot(hitSound, Mathf.Lerp(0.2f, 1f, strength));
         stick.Haptic(Mathf.Lerp(0.1f, 0.8f, strength));
-
         lastHitTime = Time.time;
     }
 }

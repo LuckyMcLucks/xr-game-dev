@@ -7,30 +7,36 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 /// <summary>
-/// Radial (wheel) inventory with put & pull.
-/// Hold openAction -> wheel appears at the left hand.
-/// Thumbstick      -> highlights a slot.
-/// Release:
-///   * Right hand holding an item + empty slot -> STORE the item.
-///   * Right hand empty + filled slot          -> PULL the item (flies to hand, then grabs).
-/// Also exposes PullWorldObject() to fly any scene object into the hand.
+/// Radial (wheel) "summon" inventory.
+/// Hold openAction (left hand) -> wheel appears in front of the eyes.
+/// Right thumbstick            -> highlights a slot.
+/// Release on a slot           -> that slot's item is spawned (first time) or teleported
+///                                to the right hand from wherever it is, then grabbed.
+///                                If the ItemData has a Second Prefab, it is summoned too
+///                                and goes to the left hand.
+/// Slots never empty: each slot owns persistent objects (one, or two).
+/// Turn/move providers listed in disableWhileOpen are disabled while the wheel is open.
+/// Also exposes PullWorldObject() to fly any scene object into the right hand.
 /// </summary>
 public class WheelInventory : MonoBehaviour
 {
     [Header("Inventory Slots")]
-    [Tooltip("One entry per slot. Empty (None) = empty slot.")]
+    [Tooltip("One entry per slot. Empty (None) = unused slot. Use each ItemData in only one slot.")]
     public ItemData[] items;
 
     [Header("Input")]
     [Tooltip("Hold to open the wheel, e.g. <XRController>{LeftHand}/primaryButton")]
     public InputActionProperty openAction;
-    [Tooltip("Thumbstick used to choose a slot, e.g. <XRController>{LeftHand}/thumbstick")]
+    [Tooltip("Thumbstick used to choose a slot, e.g. <XRController>{RightHand}/thumbstick. " +
+             "Use your own action, not the XRI default Turn/Move actions (OnDisable disables this action).")]
     public InputActionProperty selectStickAction;
 
     [Header("References")]
     public Transform leftHand;
     public XRInteractionManager interactionManager;
     public XRBaseInteractor rightInteractor;
+    [Tooltip("Needed only for items with a Second Prefab. Receives the second object.")]
+    public XRBaseInteractor leftInteractor;
     public GameObject wheelRoot;
     public Image[] slotImages;
     public GameObject[] selectedHighlights;   // one "Selected" object per slot
@@ -46,12 +52,27 @@ public class WheelInventory : MonoBehaviour
     [Tooltip("How far in front of the eyes the wheel is shown (metres).")]
     public float viewDistance = 0.45f;
 
-    [Header("Pull Animation")]
+    [Header("Summon Animation")]
     public float flyDuration = 0.2f;
+
+    [Header("Spawn Origin")]
+    [Tooltip("ON: first-time spawn comes out of the wheel. OFF: out of the left hand.")]
+    public bool spawnFromWheel = true;
+
+    [Header("Locomotion Lock")]
+    [Tooltip("Drag turn/move providers here. They are disabled while the wheel is open.")]
+    public Behaviour[] disableWhileOpen;
+
+    /// <summary>True while the wheel is open.</summary>
+    public bool IsOpen => open;
 
     int hovered = -1;
     bool open;
     Camera cam;
+
+    GameObject[] spawned;    // live copy of the main prefab, per slot
+    GameObject[] spawned2;   // live copy of the second prefab, per slot
+    int[] pending;           // flights still running per slot (blocks double-triggers)
 
     // ---------------------------------------------------------------- lifecycle
 
@@ -65,11 +86,18 @@ public class WheelInventory : MonoBehaviour
     {
         openAction.action?.Disable();
         selectStickAction.action?.Disable();
+        SetLocomotionBlocked(false);   // never leave the player unable to turn/move
     }
 
     void Start()
     {
         cam = Camera.main;
+
+        int count = items != null ? items.Length : 0;
+        spawned = new GameObject[count];
+        spawned2 = new GameObject[count];
+        pending = new int[count];
+
         if (wheelRoot) wheelRoot.SetActive(false);
         RefreshAllSlotsUI();
     }
@@ -96,25 +124,33 @@ public class WheelInventory : MonoBehaviour
             return;
         }
 
+        SetLocomotionBlocked(true);
+
         // Show the wheel FIRST, then refresh the icons: a UI refresh must never be
         // able to stop the wheel from appearing.
         PlaceWheel();
         wheelRoot.SetActive(true);
         RefreshAllSlotsUI();
-
-        Debug.Log("[WheelInventory] Wheel opened");
     }
 
     void CloseWheel()
     {
         open = false;
+        SetLocomotionBlocked(false);
+
         if (wheelRoot != null) wheelRoot.SetActive(false);
-        Debug.Log("[WheelInventory] Wheel closed");
 
         if (hovered >= 0 && items != null && hovered < items.Length)
             HandleSlotAction(hovered);
 
         hovered = -1;
+    }
+
+    void SetLocomotionBlocked(bool blocked)
+    {
+        if (disableWhileOpen == null) return;
+        foreach (var b in disableWhileOpen)
+            if (b != null) b.enabled = !blocked;
     }
 
     void UpdateHover()
@@ -173,96 +209,84 @@ public class WheelInventory : MonoBehaviour
             Quaternion.LookRotation(position - head.position, Vector3.up));
     }
 
-    // ---------------------------------------------------------------- put / pull
+    // ---------------------------------------------------------------- summon
 
     void HandleSlotAction(int slot)
     {
-        if (rightInteractor.hasSelection)
-        {
-            if (items[slot] == null) StoreHeldItem(slot);
-        }
-        else
-        {
-            if (items[slot] != null && items[slot].prefab != null) PullItem(slot);
-        }
+        if (items[slot] == null || items[slot].prefab == null) return;
+        if (rightInteractor.hasSelection) return;   // hand already full
+        SummonItem(slot);
     }
 
-    void StoreHeldItem(int slot)
+    void SummonItem(int slot)
     {
-        var interactable = rightInteractor.firstInteractableSelected;
-        if (interactable == null) return;
+        if (spawned == null || slot >= spawned.Length) return;
+        if (pending[slot] > 0) return;   // still flying from the last summon
 
-        var heldObj = interactable.transform.gameObject;
-        var instance = heldObj.GetComponentInParent<ItemInstance>();
-
-        if (instance == null || instance.data == null)
-        {
-            Debug.LogWarning($"'{heldObj.name}' can't be stored: it needs an ItemInstance with ItemData assigned.");
-            return;
-        }
-
-        items[slot] = instance.data;
-
-        // Release first so XRI doesn't complain when the object is destroyed.
-        interactionManager.SelectExit((IXRSelectInteractor)rightInteractor, interactable);
-        Destroy(instance.gameObject);
-
-        RefreshAllSlotsUI();
-    }
-
-    void PullItem(int slot)
-    {
         ItemData data = items[slot];
 
-        // Empty the slot immediately so it can't be pulled twice.
-        items[slot] = null;
-        RefreshAllSlotsUI();
+        // Main item -> right hand.
+        spawned[slot] = GetOrSpawn(spawned[slot], data.prefab, data);
+        StartCoroutine(FlyRoutine(slot, spawned[slot], rightInteractor));
 
-        StartCoroutine(SpawnAndGrab(data, slot));
+        // Optional second item -> left hand.
+        if (data.secondPrefab != null)
+        {
+            if (leftInteractor == null)
+            {
+                Debug.LogWarning("[WheelInventory] Item has a Second Prefab but 'Left Interactor' is not assigned.");
+                return;
+            }
+
+            spawned2[slot] = GetOrSpawn(spawned2[slot], data.secondPrefab, data);
+            StartCoroutine(FlyRoutine(slot, spawned2[slot], leftInteractor));
+        }
     }
 
-    IEnumerator SpawnAndGrab(ItemData data, int slot)
+    /// <summary>Returns the existing copy, or spawns a new one if it doesn't exist (yet).</summary>
+    GameObject GetOrSpawn(GameObject existing, GameObject prefab, ItemData data)
     {
-        Vector3 startPos = leftHand.TransformPoint(offsetFromHand);
-        var obj = Instantiate(data.prefab, startPos, rightInteractor.transform.rotation);
+        if (existing != null) return existing;
+
+        Vector3 startPos = (spawnFromWheel && wheelRoot != null)
+            ? wheelRoot.transform.position
+            : leftHand.TransformPoint(offsetFromHand);
+
+        var obj = Instantiate(prefab, startPos, rightInteractor.transform.rotation);
 
         if (!obj.TryGetComponent<ItemInstance>(out var instance))
             instance = obj.AddComponent<ItemInstance>();
         instance.data = data;
 
-        yield return FlyToHandAndGrab(obj, () =>
-        {
-            // Hand got filled mid-flight: return the item to its slot.
-            if (items[slot] == null) items[slot] = data;
-            else
-            {
-                int free = System.Array.IndexOf(items, null);
-                if (free >= 0) items[free] = data;
-            }
-            Destroy(obj);
-            RefreshAllSlotsUI();
-        });
+        return obj;
+    }
+
+    IEnumerator FlyRoutine(int slot, GameObject obj, XRBaseInteractor hand)
+    {
+        pending[slot]++;
+        yield return FlyToHandAndGrab(obj, hand);
+        pending[slot]--;
     }
 
     /// <summary>Fly any scene object (with an XRGrabInteractable) into the right hand.</summary>
     public void PullWorldObject(GameObject obj)
     {
         if (obj == null || rightInteractor.hasSelection) return;
-        StartCoroutine(FlyToHandAndGrab(obj, null));
+        StartCoroutine(FlyToHandAndGrab(obj, rightInteractor));
     }
 
     // ---------------------------------------------------------------- flight
 
-    IEnumerator FlyToHandAndGrab(GameObject obj, System.Action onHandBusy)
+    IEnumerator FlyToHandAndGrab(GameObject obj, XRBaseInteractor interactor)
     {
-        Transform hand = rightInteractor.attachTransform != null
-            ? rightInteractor.attachTransform
-            : rightInteractor.transform;
+        Transform hand = interactor.attachTransform != null
+            ? interactor.attachTransform
+            : interactor.transform;
 
         obj.TryGetComponent<XRGrabInteractable>(out var grab);
         obj.TryGetComponent<Rigidbody>(out var rb);
 
-        // World objects may already be held by something else: let go first.
+        // The object may already be held by something else: let go first.
         if (grab && grab.isSelected)
             interactionManager.CancelInteractableSelection((IXRSelectInteractable)grab);
 
@@ -307,33 +331,28 @@ public class WheelInventory : MonoBehaviour
 
         if (obj == null) yield break;
 
-        // Hand got filled during the flight.
-        if (rightInteractor.hasSelection)
+        // Hand got filled during the flight: leave the item where it is.
+        if (interactor.hasSelection)
         {
-            if (onHandBusy != null)
-            {
-                onHandBusy();
-            }
-            else
-            {
-                // World object: drop it where it is and restore physics.
-                if (rb) rb.isKinematic = wasKinematic;
-                if (grab) grab.enabled = true;
-            }
+            if (rb) rb.isKinematic = wasKinematic;
+            if (grab) grab.enabled = true;
             yield break;
         }
 
-        if (rb) rb.isKinematic = wasKinematic;
         if (grab)
         {
             grab.useDynamicAttach = false;
             grab.enabled = true;
         }
 
-        yield return null; // one frame for the interactable to register
+        yield return null;   // one frame for the interactable to register
+        if (obj == null) yield break;
 
-        if (obj != null && obj.TryGetComponent<IXRSelectInteractable>(out var interactable))
-            interactionManager.SelectEnter((IXRSelectInteractor)rightInteractor, interactable);
+        if (rb) rb.isKinematic = wasKinematic;
+
+        if (!interactor.hasSelection &&
+            obj.TryGetComponent<IXRSelectInteractable>(out var interactable))
+            interactionManager.SelectEnter((IXRSelectInteractor)interactor, interactable);
     }
 
     // ---------------------------------------------------------------- UI

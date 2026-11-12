@@ -9,9 +9,10 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2349342b55071a2489c587fdced10409, type: 3}
-  m_Name: Flute
+  m_Script: {fileID: 11500000, guid: 6b951995bda5102449f0d708df5937ca, type: 3}
+  m_Name: Violin_bow
   m_EditorClassIdentifier: Assembly-CSharp::ItemData
-  displayName: Flute
+  displayName: Violin Bow
   icon: {fileID: 0}
-  prefab: {fileID: 0}
+  prefab: {fileID: 3841783783414100083, guid: 93918814628c5ad489c794afb77e0ef1, type: 3}
+  secondPrefab: {fileID: 100172916251414867, guid: 1bdeb3e7b3ce5ec4faad23537a46a63c, type: 3}

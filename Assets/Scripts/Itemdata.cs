@@ -8,5 +8,7 @@ public class ItemData : ScriptableObject
 
     [Tooltip("Prefab must have a Collider, Rigidbody and XR Grab Interactable.")]
     public GameObject prefab;
-}
 
+    [Tooltip("Optional. Summoned together with the main prefab (goes to the LEFT hand). Leave empty for a single item.")]
+    public GameObject secondPrefab;
+}
