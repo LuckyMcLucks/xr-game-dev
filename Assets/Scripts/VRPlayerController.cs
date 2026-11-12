@@ -35,26 +35,36 @@ public class VRPlayerController : MonoBehaviour
             vrCamera = Camera.main.transform;
         }
 
-        // Lock mouse to center of screen and hide cursor for smooth looking
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        // Start with the mouse locked to the center and hidden
+        LockCursor();
     }
 
     void Update()
     {
+        HandleCursorLockState();
         HandleMouseLook();
         MovePlayer();
+    }
 
-        // Unlock cursor if Escape is pressed (convenience for editor testing)
+    private void HandleCursorLockState()
+    {
+        // 1. Press ESC -> Unlock cursor and stop mouse tracking
         if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
+            UnlockCursor();
+        }
+
+        // 2. Click left mouse button -> Re-lock cursor and resume mouse tracking
+        if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
+        {
+            LockCursor();
         }
     }
 
     private void HandleMouseLook()
     {
+        // Only rotate the camera if mouse tracking is active (Cursor is locked)
+        if (Cursor.lockState != CursorLockMode.Locked) return;
         if (Mouse.current == null || vrCamera == null) return;
 
         // Read mouse delta from New Input System
@@ -113,5 +123,17 @@ public class VRPlayerController : MonoBehaviour
         velocity.y = verticalVelocity;
 
         characterController.Move(velocity * Time.deltaTime);
+    }
+
+    private void LockCursor()
+    {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+    }
+
+    private void UnlockCursor()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
     }
 }
