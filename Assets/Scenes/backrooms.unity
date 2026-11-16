@@ -3692,7 +3692,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 1162911579285357835, guid: c152a2acdd004fd46874fc58e1ce29f8, type: 3}
       propertyPath: m_LocalScale.z
-      value: 5
+      value: 5.1
       objectReference: {fileID: 0}
     - target: {fileID: 1162911579285357835, guid: c152a2acdd004fd46874fc58e1ce29f8, type: 3}
       propertyPath: m_LocalPosition.x
@@ -4147,7 +4147,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MonsterZoneTrigger
   zoneRadius: 30
   gizmoColor: {r: 1, g: 0, b: 0, a: 0.35}
-  monsterPrefab: {fileID: 8490611294304855516, guid: 7f5789adaa3c84e4f987264ca04969b4, type: 3}
+  monsterPrefab: {fileID: 417171750367272772, guid: a7dfad0eee3829443b2156e01ac66c49, type: 3}
   hiddenSpawnPoints:
   - {fileID: 1516095818}
   playerTag: Player
@@ -4226,7 +4226,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MonsterZoneTrigger
   zoneRadius: 30
   gizmoColor: {r: 1, g: 0, b: 0, a: 0.35}
-  monsterPrefab: {fileID: 8490611294304855516, guid: 7f5789adaa3c84e4f987264ca04969b4, type: 3}
+  monsterPrefab: {fileID: 2697373230942101842, guid: f91d6d3475a1feb45bd310c0cdb20b41, type: 3}
   hiddenSpawnPoints:
   - {fileID: 368441598}
   playerTag: Player
@@ -4540,7 +4540,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MonsterZoneTrigger
   zoneRadius: 30
   gizmoColor: {r: 1, g: 0, b: 0, a: 0.35}
-  monsterPrefab: {fileID: 8490611294304855516, guid: 7f5789adaa3c84e4f987264ca04969b4, type: 3}
+  monsterPrefab: {fileID: 2502937323731467582, guid: 282a2c3a5efe74043b2d85804d11dcce, type: 3}
   hiddenSpawnPoints:
   - {fileID: 1530360222}
   playerTag: Player
@@ -5700,7 +5700,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  - {fileID: 2100000, guid: 9bbc8cbb100bec449b60bde4ca8ef742, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0

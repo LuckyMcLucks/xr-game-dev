@@ -2,188 +2,295 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
 
+public enum InstrumentType
+{
+    Trumpet,
+    Drums,
+    Violin,
+    Flute
+}
+
 [RequireComponent(typeof(NavMeshAgent))]
 [RequireComponent(typeof(Animator))]
 public class MonsterAI : MonoBehaviour
 {
+    [Header("Monster Classification")]
+    [Tooltip("The specific instrument required to scare away or banish this monster.")]
+    public InstrumentType requiredInstrument;
+
     [Header("Targets & Respawn")]
-    public Transform playerTransform;
-    [Tooltip("Drag your central Backrooms hub Transform here, or tag an empty object 'RespawnPoint'.")]
-    public Transform backroomsCenterPoint;
+    public Transform playerTransform; 
+    [Tooltip("Drag your central Backrooms hub Transform here, or tag an empty object 'Respawn'.")]
+    public Transform backroomsCenterPoint; 
 
     [Header("Horror Pacing & Speeds")]
     [Tooltip("Slow, creepy stalking speed when far from the player.")]
-    public float stalkSpeed = 1.8f;
+    public float stalkSpeed = 1.8f; 
     [Tooltip("Sudden burst sprint speed when close to the player.")]
-    public float sprintSpeed = 5.2f;
+    public float sprintSpeed = 5.2f; 
     [Tooltip("Distance at which the monster switches from stalking to sprinting.")]
-    public float sprintTriggerDistance = 8f;
+    public float sprintTriggerDistance = 8f; 
 
     [Header("Jumpscare Settings")]
     [Tooltip("Distance from player to trigger the in-your-face jumpscare.")]
-    public float jumpscareDistance = 1.6f;
+    public float jumpscareDistance = 1.6f; 
     [Tooltip("How close to the VR camera face the monster snaps during the scream.")]
-    public float faceSnapDistance = 0.85f;
+    public float faceSnapDistance = 0.85f; 
     [Tooltip("Vertical offset so the monster's head aligns with the player's eye level.")]
-    public float faceHeightOffset = -1.2f;
+    public float faceHeightOffset = -1.2f; 
     [Tooltip("Duration of the scream before teleporting the player back.")]
-    public float jumpscareDuration = 2.2f;
+    public float jumpscareDuration = 2.2f; 
 
     [Header("Audio Cues")]
     [Tooltip("Loud scream SFX played directly in the player's ears during the jumpscare.")]
-    public AudioClip jumpscareScreamClip;
+    public AudioClip jumpscareScreamClip; 
     [Tooltip("Optional screech when the monster spots you and starts sprinting.")]
-    public AudioClip aggroScreechClip;
+    public AudioClip aggroScreechClip; 
+    [Tooltip("Sound played when the monster is successfully banished by the matching instrument.")]
+    public AudioClip banishSfxClip;
 
-    private NavMeshAgent agent;
-    private Animator animator;
-    private AudioSource loopAudioSource;
+    private NavMeshAgent agent; 
+    private Animator animator; 
+    private AudioSource loopAudioSource; 
 
-    private bool isSprinting = false;
-    private bool isJumpscaring = false;
+    private bool isSprinting = false; 
+    private bool isJumpscaring = false; 
+    private bool isBanished = false;
 
     // Animator Hashes
-    private readonly int AnimSpeed = Animator.StringToHash("Speed");
+    private readonly int AnimSpeed = Animator.StringToHash("Speed"); 
     private readonly int AnimScream = Animator.StringToHash("Scream");
+
+    [Header("Banishment VFX & Polish")]
+    [Tooltip("Particle system prefab (e.g., dark smoke, ash, or glowing musical notes) spawned when banished.")]
+    public GameObject banishParticlePrefab;
+    [Tooltip("Height offset from the monster's feet where the particles burst (e.g., chest height).")]
+    public float particleSpawnHeight = 1.2f;
+    [Tooltip("How long the monster visibly dissolves/shrinks before being destroyed.")]
+    public float banishDuration = 1.2f;
+    [Tooltip("Optional Animator trigger name for the monster recoiling in pain (e.g., 'Scream' or 'Recoil').")]
+    public string banishAnimTrigger = "Scream";
 
     void Start()
     {
-        agent = GetComponent<NavMeshAgent>();
-        animator = GetComponent<Animator>();
-        loopAudioSource = GetComponent<AudioSource>();
+        agent = GetComponent<NavMeshAgent>(); 
+        animator = GetComponent<Animator>(); 
+        loopAudioSource = GetComponent<AudioSource>(); 
 
         // Auto-find player if not assigned
-        if (playerTransform == null)
+        if (playerTransform == null) 
         {
-            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
-            if (playerObj != null) playerTransform = playerObj.transform;
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player"); 
+            if (playerObj != null) playerTransform = playerObj.transform; 
         }
 
         // Auto-find central hub respawn point by tag if not assigned in Inspector
-        if (backroomsCenterPoint == null)
+        if (backroomsCenterPoint == null) 
         {
-            GameObject respawnObj = GameObject.FindGameObjectWithTag("Respawn");
-            if (respawnObj != null) backroomsCenterPoint = respawnObj.transform;
+            GameObject respawnObj = GameObject.FindGameObjectWithTag("Respawn"); 
+            if (respawnObj != null) backroomsCenterPoint = respawnObj.transform; 
         }
 
-        agent.speed = stalkSpeed;
+        agent.speed = stalkSpeed; 
     }
 
     void Update()
     {
-        if (playerTransform == null || isJumpscaring) return;
+        if (playerTransform == null || isJumpscaring || isBanished) return; 
 
-        float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
+        float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position); 
 
         // 1. Check Jumpscare Trigger
-        if (distanceToPlayer <= jumpscareDistance)
+        if (distanceToPlayer <= jumpscareDistance) 
         {
-            StartCoroutine(ExecuteJumpscareSequence());
-            return;
+            StartCoroutine(ExecuteJumpscareSequence()); 
+            return; 
         }
 
         // 2. Dynamic Pacing: Stalk -> Sudden Frenzy Sprint
-        if (distanceToPlayer <= sprintTriggerDistance && !isSprinting)
+        if (distanceToPlayer <= sprintTriggerDistance && !isSprinting) 
         {
-            TriggerFrenzySprint();
+            TriggerFrenzySprint(); 
         }
-        else if (distanceToPlayer > sprintTriggerDistance * 1.3f && isSprinting)
+        else if (distanceToPlayer > sprintTriggerDistance * 1.3f && isSprinting) 
         {
             // Calm back down to stalking if player manages to gain significant distance
-            isSprinting = false;
-            agent.speed = stalkSpeed;
-            if (loopAudioSource != null) loopAudioSource.pitch = 1.0f;
+            isSprinting = false; 
+            agent.speed = stalkSpeed; 
+            if (loopAudioSource != null) loopAudioSource.pitch = 1.0f; 
         }
 
         // 3. Pursue Player
-        agent.SetDestination(playerTransform.position);
+        agent.SetDestination(playerTransform.position); 
 
         // 4. Update Animator Blend Tree / Transitions
-        float currentSpeed = agent.velocity.magnitude;
-        animator.SetFloat(AnimSpeed, currentSpeed);
+        float currentSpeed = agent.velocity.magnitude; 
+        animator.SetFloat(AnimSpeed, currentSpeed); 
+    }
+
+    /// <summary>
+    /// Call this from your instrument scripts when played near the monster.
+    /// Returns true if the instrument matched and banished the monster.
+    /// </summary>
+    public bool TryBanishWithInstrument(InstrumentType playedInstrument)
+    {
+        if (isJumpscaring || isBanished) return false;
+
+        if (playedInstrument == requiredInstrument)
+        {
+            StartCoroutine(ExecuteBanishSequence());
+            return true;
+        }
+        else
+        {
+            // Wrong instrument played: agitate the monster into sprinting immediately
+            if (!isSprinting) TriggerFrenzySprint();
+            return false;
+        }
+    }
+
+    private IEnumerator ExecuteBanishSequence()
+    {
+        isBanished = true;
+
+        // 1. Immediately disable movement and colliders so it can't hurt or block the player
+        if (agent != null && agent.enabled)
+        {
+            agent.isStopped = true;
+            agent.velocity = Vector3.zero;
+            agent.enabled = false;
+        }
+
+        Collider col = GetComponent<Collider>();
+        if (col != null) col.enabled = false;
+
+        // 2. Stop ambient loop audio and play the banishment sound
+        if (loopAudioSource != null) loopAudioSource.Stop();
+
+        if (banishSfxClip != null)
+        {
+            AudioSource.PlayClipAtPoint(banishSfxClip, transform.position, 1.0f);
+        }
+
+        // 3. Play agony/recoil animation
+        if (animator != null && !string.IsNullOrEmpty(banishAnimTrigger))
+        {
+            animator.SetFloat(AnimSpeed, 0f);
+            animator.SetTrigger(banishAnimTrigger);
+        }
+
+        // 4. Spawn standalone particle burst at chest height so particles linger after monster vanishes
+        if (banishParticlePrefab != null)
+        {
+            Vector3 vfxPosition = transform.position + Vector3.up * particleSpawnHeight;
+            GameObject vfxInstance = Instantiate(banishParticlePrefab, vfxPosition, Quaternion.identity);
+            
+            // Auto-cleanup the particle object after 4 seconds
+            Destroy(vfxInstance, 4f);
+        }
+
+        // 5. Smoothly shrink and sink the monster into the floor over banishDuration
+        Vector3 initialScale = transform.localScale;
+        Vector3 initialPos = transform.position;
+        float elapsed = 0f;
+
+        while (elapsed < banishDuration)
+        {
+            elapsed += Time.deltaTime;
+            float progress = elapsed / banishDuration;
+
+            // Smoothly shrink scale to zero and sink slightly downward
+            transform.localScale = Vector3.Lerp(initialScale, Vector3.zero, progress * progress);
+            transform.position = Vector3.Lerp(initialPos, initialPos + Vector3.down * 0.5f, progress);
+
+            yield return null;
+        }
+
+        // 6. Destroy the monster object cleanly once shrunk
+        Destroy(gameObject);
     }
 
     private void TriggerFrenzySprint()
     {
-        isSprinting = true;
-        agent.speed = sprintSpeed;
+        isSprinting = true; 
+        agent.speed = sprintSpeed; 
 
         // Increase ambient loop pitch to heighten panic
-        if (loopAudioSource != null)
+        if (loopAudioSource != null) 
         {
-            loopAudioSource.pitch = 1.25f;
+            loopAudioSource.pitch = 1.25f; 
         }
 
         // Play aggro screech
-        if (aggroScreechClip != null)
+        if (aggroScreechClip != null) 
         {
-            AudioSource.PlayClipAtPoint(aggroScreechClip, transform.position, 1.0f);
+            AudioSource.PlayClipAtPoint(aggroScreechClip, transform.position, 1.0f); 
         }
     }
 
     private IEnumerator ExecuteJumpscareSequence()
     {
-        isJumpscaring = true;
+        isJumpscaring = true; 
 
         // 1. Stop NavMesh movement immediately so it doesn't push the player around
-        agent.isStopped = true;
-        agent.velocity = Vector3.zero;
-        agent.enabled = false;
+        agent.isStopped = true; 
+        agent.velocity = Vector3.zero; 
+        agent.enabled = false; 
 
         // Stop ambient footsteps/breathing loop so the scream dominates
-        if (loopAudioSource != null) loopAudioSource.Stop();
+        if (loopAudioSource != null) loopAudioSource.Stop(); 
 
         // 2. Freeze Player Movement during the scare
-        VRPlayerController playerController = playerTransform.GetComponent<VRPlayerController>();
-        CharacterController charController = playerTransform.GetComponent<CharacterController>();
-        if (playerController != null) playerController.enabled = false;
+        VRPlayerController playerController = playerTransform.GetComponent<VRPlayerController>(); 
+        CharacterController charController = playerTransform.GetComponent<CharacterController>(); 
+        if (playerController != null) playerController.enabled = false; 
 
         // 3. Snap Monster right in front of the player's VR camera / eyes
-        Transform camTransform = Camera.main != null ? Camera.main.transform : playerTransform;
-        Vector3 flatForward = camTransform.forward;
-        flatForward.y = 0f;
-        flatForward.Normalize();
+        Transform camTransform = Camera.main != null ? Camera.main.transform : playerTransform; 
+        Vector3 flatForward = camTransform.forward; 
+        flatForward.y = 0f; 
+        flatForward.Normalize(); 
 
-        Vector3 scarePosition = camTransform.position + (flatForward * faceSnapDistance);
-        scarePosition.y += faceHeightOffset;
-        transform.position = scarePosition;
+        Vector3 scarePosition = camTransform.position + (flatForward * faceSnapDistance); 
+        scarePosition.y += faceHeightOffset; 
+        transform.position = scarePosition; 
 
         // Make the monster stare directly at the camera
-        Vector3 lookTarget = new Vector3(camTransform.position.x, transform.position.y, camTransform.position.z);
-        transform.LookAt(lookTarget);
+        Vector3 lookTarget = new Vector3(camTransform.position.x, transform.position.y, camTransform.position.z); 
+        transform.LookAt(lookTarget); 
 
         // 4. Trigger Scream Animation & Loud Audio
-        animator.SetFloat(AnimSpeed, 0f);
-        animator.SetTrigger(AnimScream);
+        animator.SetFloat(AnimSpeed, 0f); 
+        animator.SetTrigger(AnimScream); 
 
-        if (jumpscareScreamClip != null)
+        if (jumpscareScreamClip != null) 
         {
-            AudioSource.PlayClipAtPoint(jumpscareScreamClip, camTransform.position, 1.0f);
+            AudioSource.PlayClipAtPoint(jumpscareScreamClip, camTransform.position, 1.0f); 
         }
 
         // 5. Hold the jumpscare in the player's face
-        yield return new WaitForSeconds(jumpscareDuration);
+        yield return new WaitForSeconds(jumpscareDuration); 
 
         // 6. Teleport Player back to the center of the Backrooms
-        if (backroomsCenterPoint != null)
+        if (backroomsCenterPoint != null) 
         {
             // Must disable CharacterController momentarily to teleport cleanly in Unity
-            if (charController != null) charController.enabled = false;
+            if (charController != null) charController.enabled = false; 
             
-            playerTransform.position = backroomsCenterPoint.position;
-            playerTransform.rotation = backroomsCenterPoint.rotation;
+            playerTransform.position = backroomsCenterPoint.position; 
+            playerTransform.rotation = backroomsCenterPoint.rotation; 
             
-            if (charController != null) charController.enabled = true;
+            if (charController != null) charController.enabled = true; 
         }
-        else
+        else 
         {
-            Debug.LogWarning("[MonsterAI] No Backrooms Center Point assigned or tagged 'Respawn'!");
+            Debug.LogWarning("[MonsterAI] No Backrooms Center Point assigned or tagged 'Respawn'!"); 
         }
 
         // Re-enable player controls
-        if (playerController != null) playerController.enabled = true;
+        if (playerController != null) playerController.enabled = true; 
 
         // 7. Despawn the monster
-        Destroy(gameObject);
+        Destroy(gameObject); 
     }
 }
