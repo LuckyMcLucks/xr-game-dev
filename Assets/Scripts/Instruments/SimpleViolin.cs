@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 [RequireComponent(typeof(AudioSource))]
 public class SimpleViolin : MonoBehaviour
@@ -6,8 +7,10 @@ public class SimpleViolin : MonoBehaviour
     private AudioSource audioSource;
     private float targetVolume = 0f;
 
-    [Tooltip("Smoothing speed for volume fading")]
     public float fadeSpeed = 8f;
+
+    [Header("Debug")]
+    public bool enableDebugKey = true;
 
     void Awake()
     {
@@ -18,28 +21,36 @@ public class SimpleViolin : MonoBehaviour
 
     void Update()
     {
-        // Smoothly fade audio in/out to prevent harsh cutoffs
-        audioSource.volume = Mathf.Lerp(audioSource.volume, targetVolume, Time.deltaTime * fadeSpeed);
-
-        // Pause when totally silent, resume when playing
-        if (audioSource.volume < 0.01f && audioSource.isPlaying)
+        
+        // Debug: hold Ctrl+L to simulate bowing (must run before the fade below)
+        if (enableDebugKey && Keyboard.current != null)
         {
-            audioSource.Pause();
+            var kb = Keyboard.current;
+            bool ctrl = kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed;
+            if (ctrl && kb.lKey.isPressed) Rub();
         }
 
-        // Reset volume target every frame. Bow will keep it high if rubbing.
+        audioSource.volume = Mathf.Lerp(audioSource.volume, targetVolume, Time.deltaTime * fadeSpeed);
+
+        if (audioSource.volume < 0.01f && audioSource.isPlaying)
+            audioSource.Pause();
+
         targetVolume = 0f;
     }
 
-    // Called by the Bow script whenever it's actively moving across this collider
     public void Rub()
     {
+        if (!InstrumentStamina.Available) return;
+        InstrumentStamina.ReportPlaying();
         if (!audioSource.isPlaying)
         {
             audioSource.UnPause();
             if (!audioSource.isPlaying) audioSource.Play();
         }
 
-        targetVolume = 1f; // Full volume while rubbing
+        targetVolume = 1f;
+
+        foreach (var monster in MonsterAI.all)
+            monster.HearInstrument(InstrumentType.Violin);
     }
 }

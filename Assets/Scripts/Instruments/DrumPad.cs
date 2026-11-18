@@ -1,7 +1,6 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
-/// Put this on the snare HEAD (a thin object/cylinder on top of the drum).
-/// Needs: a Collider with Is Trigger ON, and an AudioSource (Play On Awake OFF).
 [RequireComponent(typeof(AudioSource))]
 public class DrumPad : MonoBehaviour
 {
@@ -9,39 +8,77 @@ public class DrumPad : MonoBehaviour
     public string stickTag = "DrumStick";
 
     [Header("Feel")]
-    public float minHitSpeed = 0.3f;     // ignore very slow touches (m/s)
-    public float maxHitSpeed = 4f;       // speed that gives full volume
-    public float cooldown = 0.04f;       // prevents double triggers (sec)
-    public Vector3 downDirection = Vector3.down; // "into the drum" in world space
+    public float minHitSpeed = 0.3f;
+    public float maxHitSpeed = 4f;
+    public float cooldown = 0.04f;
+    public Vector3 downDirection = Vector3.down;
+
+    [Header("Monster hearing")]
+    public float soundHoldTime = 0.7f;
+
+    [Header("Debug")]
+    public bool enableDebugKey = true;
+    public float debugHitInterval = 0.3f;
 
     AudioSource source;
-    float lastHitTime;
-
+    float lastHitTime = -10f;
+    float nextDebugHit;
+    public float hitCost = 8f;
     void Awake()
     {
         source = GetComponent<AudioSource>();
         source.playOnAwake = false;
-        source.spatialBlend = 1f; // 3D sound
+        source.spatialBlend = 1f;
+    }
+
+    void Update()
+    {
+        
+        // Debug: hold Ctrl+K to simulate drumming
+        if (enableDebugKey && Keyboard.current != null)
+        {
+            var kb = Keyboard.current;
+            bool ctrl = kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed;
+            if (ctrl && kb.kKey.isPressed && Time.time >= nextDebugHit)
+            {
+                nextDebugHit = Time.time + debugHitInterval;
+                PlayHit(0.8f);
+            }
+        }
+
+        // Keep telling monsters the drum is being played for a moment after each hit
+        if (Time.time - lastHitTime < soundHoldTime)
+        {
+            foreach (var monster in MonsterAI.all)
+                monster.HearInstrument(InstrumentType.Drums);
+        }
+    }
+
+    bool PlayHit(float strength)
+    {
+        if (!InstrumentStamina.Available) return false;
+        InstrumentStamina.Spend(hitCost);
+
+        source.pitch = Random.Range(0.97f, 1.03f);
+        if (hitSound != null)
+            source.PlayOneShot(hitSound, Mathf.Lerp(0.2f, 1f, strength));
+        lastHitTime = Time.time;
+        return true;
     }
 
     void OnTriggerEnter(Collider other)
     {
-        Debug.Log($"Pad touched by {other.name}, tag={other.tag}");
-
-        if (!other.CompareTag(stickTag)) { Debug.Log("-> wrong tag"); return; }
-        if (Time.time - lastHitTime < cooldown) { Debug.Log("-> cooldown"); return; }
+        if (!other.CompareTag(stickTag)) return;
+        if (Time.time - lastHitTime < cooldown) return;
 
         var stick = other.GetComponent<DrumStick>();
-        if (stick == null) { Debug.Log("-> no DrumStick on the collider object"); return; }
+        if (stick == null) return;
 
         float speed = Vector3.Dot(stick.Velocity, downDirection.normalized);
-        Debug.Log($"-> downward speed={speed:F2} (needs {minHitSpeed})");
         if (speed < minHitSpeed) return;
 
         float strength = Mathf.InverseLerp(minHitSpeed, maxHitSpeed, speed);
-        source.pitch = Random.Range(0.97f, 1.03f);
-        source.PlayOneShot(hitSound, Mathf.Lerp(0.2f, 1f, strength));
+        if (PlayHit(strength))
         stick.Haptic(Mathf.Lerp(0.1f, 0.8f, strength));
-        lastHitTime = Time.time;
     }
 }

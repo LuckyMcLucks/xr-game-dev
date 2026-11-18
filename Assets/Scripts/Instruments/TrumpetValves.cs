@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
-
+using UnityEngine.InputSystem;
 /// Put this on the trumpet (the object with the XRGrabInteractable).
 /// While held, pulling the trigger plays the music and cycles the valves.
 [RequireComponent(typeof(AudioSource))]
@@ -18,11 +18,13 @@ public class TrumpetValves : MonoBehaviour
     [Header("References")]
     public XRGrabInteractable grabInteractable;    // auto-found if left empty
     public Valve[] valves;
-
+    [Header("Debug")]
+    public bool enableDebugKey = true;
+   
     [Header("Sound")]
     public AudioClip music;
     public bool loopMusic = true;
-
+    
     [Header("Valve animation")]
     public float pressDistance = 0.01f;            // local units
     public Vector3 pressAxis = new Vector3(0f, -1f, 0f);   // local direction the valve moves when pressed
@@ -77,6 +79,7 @@ public class TrumpetValves : MonoBehaviour
 
     void StartPlaying()
     {
+        if (!InstrumentStamina.Available) return;
         if (playing) return;
         playing = true;
         step = 0;
@@ -107,7 +110,22 @@ public class TrumpetValves : MonoBehaviour
 
     void Update()
     {
-        // Advance the valve cycle while playing
+        
+        if (enableDebugKey && Keyboard.current != null)
+    {
+        if (Keyboard.current.spaceKey.wasPressedThisFrame)  StartPlaying();
+        if (Keyboard.current.spaceKey.wasReleasedThisFrame) StopPlaying();
+    }
+        if (playing)
+        {
+            if (!InstrumentStamina.Available) StopPlaying();
+            else InstrumentStamina.ReportPlaying();
+        }
+        if (playing)
+        {
+            foreach (var monster in MonsterAI.all)
+                monster.HearInstrument(InstrumentType.Trumpet);
+        }
         if (playing && pattern.Length > 0)
         {
             stepTimer += Time.deltaTime;

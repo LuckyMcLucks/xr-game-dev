@@ -17,6 +17,15 @@ public class MonsterAI : MonoBehaviour
     [Header("Monster Classification")]
     [Tooltip("The specific instrument required to scare away or banish this monster.")]
     public InstrumentType requiredInstrument;
+    [Header("Instrument Reaction")]
+    public float hearDistance = 15f;
+    public float banishDistance = 4f;      
+    public float banishHoldTime = 0.5f;    
+    public float fleeSpeed = 3.5f;
+    public float fleeStep = 6f;
+    private float lastHeardTime = -10f;
+    private InstrumentType lastHeardType;
+    private float banishTimer;
 
     [Header("Targets & Respawn")]
     public Transform playerTransform; 
@@ -70,7 +79,16 @@ public class MonsterAI : MonoBehaviour
     public float banishDuration = 1.2f;
     [Tooltip("Optional Animator trigger name for the monster recoiling in pain (e.g., 'Scream' or 'Recoil').")]
     public string banishAnimTrigger = "Scream";
+    public static System.Collections.Generic.List<MonsterAI> all = new System.Collections.Generic.List<MonsterAI>();
 
+    void OnEnable()  { all.Add(this); }
+    void OnDisable() { all.Remove(this); }
+
+    public void HearInstrument(InstrumentType type)
+    {
+        lastHeardTime = Time.time;
+        lastHeardType = type;
+    }
     void Start()
     {
         agent = GetComponent<NavMeshAgent>(); 
@@ -99,7 +117,34 @@ public class MonsterAI : MonoBehaviour
         if (playerTransform == null || isJumpscaring || isBanished) return; 
 
         float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position); 
+        bool hears = Time.time - lastHeardTime < 0.15f && distanceToPlayer < hearDistance;
 
+        if (hears && lastHeardType == requiredInstrument)
+        {
+            if (distanceToPlayer < banishDistance)
+            {
+                banishTimer += Time.deltaTime;
+                if (banishTimer >= banishHoldTime)
+                {
+                    StartCoroutine(ExecuteBanishSequence());
+                    return;
+                }
+            }
+            else banishTimer = 0f;
+
+            agent.speed = fleeSpeed;
+            Flee();
+            animator.SetFloat(AnimSpeed, agent.velocity.magnitude);
+            return;   // skip jumpscare and chase while the right instrument is playing
+        }
+
+        banishTimer = 0f;
+
+        // wrong instrument angers it
+        if (hears && !isSprinting) TriggerFrenzySprint();
+
+        // restore the correct chase speed after fleeing
+        agent.speed = isSprinting ? sprintSpeed : stalkSpeed;
         // 1. Check Jumpscare Trigger
         if (distanceToPlayer <= jumpscareDistance) 
         {
@@ -128,6 +173,16 @@ public class MonsterAI : MonoBehaviour
         animator.SetFloat(AnimSpeed, currentSpeed); 
     }
 
+    private void Flee()
+    {
+        Vector3 away = transform.position - playerTransform.position;
+        away.y = 0f;
+        away.Normalize();
+
+        Vector3 target = transform.position + away * fleeStep;
+        if (NavMesh.SamplePosition(target, out NavMeshHit hit, 4f, NavMesh.AllAreas))
+            agent.SetDestination(hit.position);
+    }
     /// <summary>
     /// Call this from your instrument scripts when played near the monster.
     /// Returns true if the instrument matched and banished the monster.
