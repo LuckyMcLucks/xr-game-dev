@@ -55,11 +55,14 @@ public class BossAI : MonoBehaviour
     private readonly int AnimHit = Animator.StringToHash("TakeHit");
     private readonly int AnimDie = Animator.StringToHash("Die");
 
-    void Start()
+    void Awake()
     {
         animator = GetComponent<Animator>();
         currentHealth = maxHealth;
-        
+    }
+
+    void Start()
+    {
         if (playerTransform == null && Camera.main != null)
         {
             playerTransform = Camera.main.transform;
@@ -180,6 +183,8 @@ public class BossAI : MonoBehaviour
 
     private IEnumerator StartSpawningPhase()
     {
+        if (animator == null) animator = GetComponent<Animator>();
+
         currentState = BossState.SpawningWave;
         
         if (shieldVisual != null) shieldVisual.SetActive(true);
@@ -187,7 +192,6 @@ public class BossAI : MonoBehaviour
         testTerrifiedBool = false;
         animator.SetBool(AnimIsTerrified, false);
         animator.SetTrigger(AnimCastSpell);
-
         yield return new WaitForSeconds(1.5f);
 
         activeWaveMonsters.Clear();
