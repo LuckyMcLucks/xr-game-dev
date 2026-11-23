@@ -102,7 +102,18 @@ public class BossIntroCutscene : MonoBehaviour
 
         if (lightsOutSfx != null)
         {
-            AudioSource.PlayClipAtPoint(lightsOutSfx, transform.position, 1.0f);
+            if (bossVoiceSource != null)
+            {
+                // Temporarily switch to 2D so the blackout slam feels visceral and loud everywhere
+                bossVoiceSource.spatialBlend = 0f;
+                bossVoiceSource.PlayOneShot(lightsOutSfx, 1.5f); // PlayOneShot supports > 1.0f volume scale
+            }
+            else
+            {
+                // Fallback: spawn at the player's camera position instead of the distant stage
+                Vector3 earPos = Camera.main != null ? Camera.main.transform.position : transform.position;
+                AudioSource.PlayClipAtPoint(lightsOutSfx, earPos, 1.0f);
+            }
         }
 
         // 2. Shut off Spotlight and disable the Piano + Performer GameObject

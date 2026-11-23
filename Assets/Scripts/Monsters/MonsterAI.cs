@@ -34,11 +34,11 @@ public class MonsterAI : MonoBehaviour
 
     [Header("Horror Pacing & Speeds")]
     [Tooltip("Slow, creepy stalking speed when far from the player.")]
-    public float stalkSpeed = 1.8f; 
+    public float stalkSpeed = 1.8f;
     [Tooltip("Sudden burst sprint speed when close to the player.")]
     public float sprintSpeed = 5.2f; 
     [Tooltip("Distance at which the monster switches from stalking to sprinting.")]
-    public float sprintTriggerDistance = 8f; 
+    public float sprintTriggerDistance = 8f;
 
     [Header("Jumpscare Settings")]
     [Tooltip("Distance from player to trigger the in-your-face jumpscare.")]
@@ -48,7 +48,9 @@ public class MonsterAI : MonoBehaviour
     [Tooltip("Vertical offset so the monster's head aligns with the player's eye level.")]
     public float faceHeightOffset = -1.2f; 
     [Tooltip("Duration of the scream before teleporting the player back.")]
-    public float jumpscareDuration = 2.2f; 
+    public float jumpscareDuration = 2.2f;
+    [Tooltip("Adjust if your 3D model's face is rotated (e.g., 180 if it turns its back to you).")]
+    public float modelForwardYawOffset = 0f;
 
     [Header("Audio Cues")]
     [Tooltip("Loud scream SFX played directly in the player's ears during the jumpscare.")]
@@ -285,67 +287,79 @@ public class MonsterAI : MonoBehaviour
 
     private IEnumerator ExecuteJumpscareSequence()
     {
-        isJumpscaring = true; 
+        isJumpscaring = true;
 
-        // 1. Stop NavMesh movement immediately so it doesn't push the player around
-        agent.isStopped = true; 
-        agent.velocity = Vector3.zero; 
-        agent.enabled = false; 
+        // 1. Stop NavMesh movement and disable collider so it doesn't push the player
+        agent.isStopped = true;
+        agent.velocity = Vector3.zero;
+        agent.enabled = false;
 
-        // Stop ambient footsteps/breathing loop so the scream dominates
-        if (loopAudioSource != null) loopAudioSource.Stop(); 
+        Collider col = GetComponent<Collider>();
+        if (col != null) col.enabled = false;
+
+        if (loopAudioSource != null) loopAudioSource.Stop();
 
         // 2. Freeze Player Movement during the scare
-        VRPlayerController playerController = playerTransform.GetComponent<VRPlayerController>(); 
-        CharacterController charController = playerTransform.GetComponent<CharacterController>(); 
-        if (playerController != null) playerController.enabled = false; 
+        VRPlayerController playerController = playerTransform.GetComponent<VRPlayerController>();
+        CharacterController charController = playerTransform.GetComponent<CharacterController>();
+        if (playerController != null) playerController.enabled = false;
 
-        // 3. Snap Monster right in front of the player's VR camera / eyes
-        Transform camTransform = Camera.main != null ? Camera.main.transform : playerTransform; 
-        Vector3 flatForward = camTransform.forward; 
-        flatForward.y = 0f; 
-        flatForward.Normalize(); 
-
-        Vector3 scarePosition = camTransform.position + (flatForward * faceSnapDistance); 
-        scarePosition.y += faceHeightOffset; 
-        transform.position = scarePosition; 
-
-        // Make the monster stare directly at the camera
-        Vector3 lookTarget = new Vector3(camTransform.position.x, transform.position.y, camTransform.position.z); 
-        transform.LookAt(lookTarget); 
+        // 3. Find the active VR Camera (prioritizes child camera under playerTransform)
+        Camera playerCam = playerTransform.GetComponentInChildren<Camera>();
+        Transform camTransform = playerCam != null ? playerCam.transform : (Camera.main != null ? Camera.main.transform : playerTransform);
 
         // 4. Trigger Scream Animation & Loud Audio
-        animator.SetFloat(AnimSpeed, 0f); 
-        animator.SetTrigger(AnimScream); 
+        animator.SetFloat(AnimSpeed, 0f);
+        animator.SetTrigger(AnimScream);
 
-        if (jumpscareScreamClip != null) 
+        if (jumpscareScreamClip != null)
         {
-            AudioSource.PlayClipAtPoint(jumpscareScreamClip, camTransform.position, 1.0f); 
+            AudioSource.PlayClipAtPoint(jumpscareScreamClip, camTransform.position, 1.0f);
         }
 
-        // 5. Hold the jumpscare in the player's face
-        yield return new WaitForSeconds(jumpscareDuration); 
+        // 5. Keep the monster locked in front of the player's gaze and facing them for the duration
+        float elapsed = 0f;
+        while (elapsed < jumpscareDuration)
+        {
+            elapsed += Time.deltaTime;
+
+            // Get horizontal direction the player's head is currently looking
+            Vector3 flatForward = camTransform.forward;
+            flatForward.y = 0f;
+            if (flatForward.sqrMagnitude < 0.001f) flatForward = playerTransform.forward;
+            flatForward.Normalize();
+
+            // Position directly in front of the player's face
+            Vector3 scarePosition = camTransform.position + (flatForward * faceSnapDistance);
+            scarePosition.y = camTransform.position.y + faceHeightOffset;
+            transform.position = scarePosition;
+
+            // Rotate monster to face the player + apply model forward offset
+            Quaternion lookRotation = Quaternion.LookRotation(-flatForward, Vector3.up);
+            transform.rotation = lookRotation * Quaternion.Euler(0f, modelForwardYawOffset, 0f);
+
+            yield return null;
+        }
 
         // 6. Teleport Player back to the center of the Backrooms
-        if (backroomsCenterPoint != null) 
+        if (backroomsCenterPoint != null)
         {
-            // Must disable CharacterController momentarily to teleport cleanly in Unity
-            if (charController != null) charController.enabled = false; 
-            
-            playerTransform.position = backroomsCenterPoint.position; 
-            playerTransform.rotation = backroomsCenterPoint.rotation; 
-            
-            if (charController != null) charController.enabled = true; 
+            if (charController != null) charController.enabled = false;
+
+            playerTransform.position = backroomsCenterPoint.position;
+            playerTransform.rotation = backroomsCenterPoint.rotation;
+
+            if (charController != null) charController.enabled = true;
         }
-        else 
+        else
         {
-            Debug.LogWarning("[MonsterAI] No Backrooms Center Point assigned or tagged 'Respawn'!"); 
+            Debug.LogWarning("[MonsterAI] No Backrooms Center Point assigned or tagged 'Respawn'!");
         }
 
         // Re-enable player controls
-        if (playerController != null) playerController.enabled = true; 
+        if (playerController != null) playerController.enabled = true;
 
         // 7. Despawn the monster
-        Destroy(gameObject); 
+        Destroy(gameObject);
     }
 }

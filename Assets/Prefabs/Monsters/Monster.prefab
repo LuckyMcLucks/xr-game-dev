@@ -93,7 +93,7 @@ NavMeshAgent:
   m_Enabled: 1
   m_AgentTypeID: 0
   m_Radius: 3
-  m_Speed: 0.5
+  m_Speed: 0.7
   m_Acceleration: 8
   avoidancePriority: 50
   m_AngularSpeed: 120
@@ -118,11 +118,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MonsterAI
   requiredInstrument: 3
+  hearDistance: 15
+  banishDistance: 4
+  banishHoldTime: 0.5
+  fleeSpeed: 3.5
+  fleeStep: 6
   playerTransform: {fileID: 0}
   backroomsCenterPoint: {fileID: 0}
-  stalkSpeed: 0.5
-  sprintSpeed: 2
-  sprintTriggerDistance: 8
+  stalkSpeed: 0.7
+  sprintSpeed: 3
+  sprintTriggerDistance: 10
   jumpscareDistance: 1.6
   faceSnapDistance: 2
   faceHeightOffset: -2.7

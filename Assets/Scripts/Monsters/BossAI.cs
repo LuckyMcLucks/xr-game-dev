@@ -13,37 +13,36 @@ public enum BossState
 [RequireComponent(typeof(Animator))]
 public class BossAI : MonoBehaviour
 {
-    [Header("Boss Stats")]
-    public float maxHealth = 100f;
-    public float currentHealth;
+    [Header("Wave Progression Settings")]
+    [Tooltip("Number of monsters to spawn in each wave (e.g., Wave 1 = 2, Wave 2 = 4, Wave 3 = 6).")]
+    public int[] monstersPerWave = new int[] { 2, 4, 6 };
+    [Tooltip("Current active wave (1-based index for easy reading in Inspector).")]
+    public int currentWave = 0;
     public BossState currentState;
 
     [Header("Spawn Settings")]
-    [Tooltip("List of monster prefabs to spawn per wave.")]
+    [Tooltip("Your 4 monster prefabs (Trumpet, Drums, Violin, Flute).")]
     public List<GameObject> waveMonsterPrefabs;
-    [Tooltip("Transforms where monsters will spawn around the stage.")]
+    [Tooltip("Your 4 spawn point transforms around the stage.")]
     public Transform[] spawnPoints;
-    
+    [Tooltip("Slight delay between spawning each monster in a wave so they don't overlap.")]
+    public float staggerSpawnInterval = 0.4f;
+
     [Header("State Timers")]
-    [Tooltip("How long the boss stays terrified/vulnerable when all wave monsters die.")]
-    public float vulnerableDuration = 8f;
+    [Tooltip("How long the boss stays terrified between waves before summoning the next wave.")]
+    public float vulnerableDuration = 5f;
+    [Tooltip("Brief terrified reaction before the boss dies after the final wave is defeated.")]
+    public float finalDeathDelay = 2.0f;
 
     [Header("References")]
     public Transform playerTransform;
     public GameObject shieldVisual;
 
     [Header("--- MANUAL ANIMATION TESTING (PLAY MODE ONLY) ---")]
-    [Tooltip("Click the checkbox to manually trigger the Spell Cast animation in Play Mode.")]
     public bool testCastSpellTrigger;
-    
-    [Tooltip("Toggle on/off to force the Terrified/Vulnerable animation state.")]
     public bool testTerrifiedBool;
     private bool previousTerrifiedValue = false;
-
-    [Tooltip("Click the checkbox to manually trigger the Hit animation.")]
     public bool testTakeHitTrigger;
-
-    [Tooltip("Click the checkbox to manually trigger the Death animation.")]
     public bool testDeathTrigger;
 
     private Animator animator;
@@ -58,7 +57,6 @@ public class BossAI : MonoBehaviour
     void Awake()
     {
         animator = GetComponent<Animator>();
-        currentHealth = maxHealth;
     }
 
     void Start()
@@ -71,7 +69,6 @@ public class BossAI : MonoBehaviour
 
     void Update()
     {
-        // Handle Inspector Testing Triggers
         CheckInspectorAnimationTriggers();
 
         // Keep boss facing the player during battle
@@ -85,14 +82,27 @@ public class BossAI : MonoBehaviour
             }
         }
 
-        // Check wave completion
+        // Check if all monsters in the current wave have been banished
         if (currentState == BossState.Commanding)
         {
             CleanupDeadMonstersInList();
             if (activeWaveMonsters.Count == 0)
             {
-                StartCoroutine(EnterVulnerableState());
+                OnWaveCleared();
             }
+        }
+    }
+
+    private void OnWaveCleared()
+    {
+        // Check if this was the final wave
+        if (currentWave >= monstersPerWave.Length)
+        {
+            StartCoroutine(FinalBossDefeatSequence());
+        }
+        else
+        {
+            StartCoroutine(EnterVulnerableState());
         }
     }
 
@@ -105,7 +115,6 @@ public class BossAI : MonoBehaviour
             TriggerSpellCastAnimation();
         }
 
-        // Only update the Animator parameter when the checkbox actually changes value
         if (testTerrifiedBool != previousTerrifiedValue)
         {
             previousTerrifiedValue = testTerrifiedBool;
@@ -128,14 +137,11 @@ public class BossAI : MonoBehaviour
         }
     }
 
-    // --- CONTEXT MENU BUTTONS (Right-click script title in Inspector) ---
-
     [ContextMenu("Test Animation: Spell Cast")]
     public void TriggerSpellCastAnimation()
     {
         if (animator == null) animator = GetComponent<Animator>();
         animator.SetTrigger(AnimCastSpell);
-        Debug.Log("[Boss Testing] Triggered Spell Cast Animation");
     }
 
     [ContextMenu("Test Animation: Toggle Terrified ON")]
@@ -144,7 +150,6 @@ public class BossAI : MonoBehaviour
         if (animator == null) animator = GetComponent<Animator>();
         testTerrifiedBool = true;
         animator.SetBool(AnimIsTerrified, true);
-        Debug.Log("[Boss Testing] Terrified Animation set to TRUE");
     }
 
     [ContextMenu("Test Animation: Toggle Terrified OFF")]
@@ -153,7 +158,6 @@ public class BossAI : MonoBehaviour
         if (animator == null) animator = GetComponent<Animator>();
         testTerrifiedBool = false;
         animator.SetBool(AnimIsTerrified, false);
-        Debug.Log("[Boss Testing] Terrified Animation set to FALSE");
     }
 
     [ContextMenu("Test Animation: Take Hit")]
@@ -161,7 +165,6 @@ public class BossAI : MonoBehaviour
     {
         if (animator == null) animator = GetComponent<Animator>();
         animator.SetTrigger(AnimHit);
-        Debug.Log("[Boss Testing] Triggered Take Hit Animation");
     }
 
     [ContextMenu("Test Animation: Death")]
@@ -169,15 +172,15 @@ public class BossAI : MonoBehaviour
     {
         if (animator == null) animator = GetComponent<Animator>();
         animator.SetTrigger(AnimDie);
-        Debug.Log("[Boss Testing] Triggered Death Animation");
     }
 
     // --- GAMEPLAY PHASES ---
 
-    [ContextMenu("Start Wave Spawning Phase")]
+    [ContextMenu("Start Boss Fight (Wave 1)")]
     public void ForceStartSpawningPhase()
     {
         StopAllCoroutines();
+        currentWave = 0; // Reset to 0 so the first StartSpawningPhase() increments to Wave 1
         StartCoroutine(StartSpawningPhase());
     }
 
@@ -185,22 +188,42 @@ public class BossAI : MonoBehaviour
     {
         if (animator == null) animator = GetComponent<Animator>();
 
+        currentWave++;
         currentState = BossState.SpawningWave;
-        
+
+        int waveIndex = Mathf.Clamp(currentWave - 1, 0, monstersPerWave.Length - 1);
+        int spawnCount = monstersPerWave[waveIndex];
+
+        Debug.Log($"[BossAI] Starting Wave {currentWave}/{monstersPerWave.Length} — Spawning {spawnCount} monsters!");
+
         if (shieldVisual != null) shieldVisual.SetActive(true);
 
         testTerrifiedBool = false;
         animator.SetBool(AnimIsTerrified, false);
         animator.SetTrigger(AnimCastSpell);
+
+        // Wait for spell-cast animation windup
         yield return new WaitForSeconds(1.5f);
 
         activeWaveMonsters.Clear();
-        for (int i = 0; i < waveMonsterPrefabs.Count; i++)
+
+        if (waveMonsterPrefabs == null || waveMonsterPrefabs.Count == 0 || spawnPoints == null || spawnPoints.Length == 0)
         {
-            if (spawnPoints.Length == 0) break;
-            Transform spawnPoint = spawnPoints[i % spawnPoints.Length];
-            GameObject monster = Instantiate(waveMonsterPrefabs[i], spawnPoint.position, spawnPoint.rotation);
-            
+            Debug.LogWarning("[BossAI] Missing Monster Prefabs or Spawn Points in Inspector!");
+            yield break;
+        }
+
+        // Create shuffled lists so monster types and spawn points are varied each wave
+        List<GameObject> monsterPool = BuildShuffledMonsterPool(spawnCount);
+        List<Transform> shuffledSpawns = GetShuffledSpawnPoints();
+
+        for (int i = 0; i < spawnCount; i++)
+        {
+            GameObject prefabToSpawn = monsterPool[i];
+            Transform spawnPoint = shuffledSpawns[i % shuffledSpawns.Count];
+
+            GameObject monster = Instantiate(prefabToSpawn, spawnPoint.position, spawnPoint.rotation);
+
             MonsterAI monsterAI = monster.GetComponent<MonsterAI>();
             if (monsterAI != null)
             {
@@ -208,6 +231,12 @@ public class BossAI : MonoBehaviour
             }
 
             activeWaveMonsters.Add(monster);
+
+            // Stagger spawns slightly so when spawning 6 monsters across 4 points, they don't collide
+            if (staggerSpawnInterval > 0f && i < spawnCount - 1)
+            {
+                yield return new WaitForSeconds(staggerSpawnInterval);
+            }
         }
 
         currentState = BossState.Commanding;
@@ -216,30 +245,72 @@ public class BossAI : MonoBehaviour
     private IEnumerator EnterVulnerableState()
     {
         currentState = BossState.VulnerableTerrified;
-        
+        Debug.Log($"[BossAI] Wave {currentWave} cleared! Boss is terrified for {vulnerableDuration}s.");
+
         if (shieldVisual != null) shieldVisual.SetActive(false);
         testTerrifiedBool = true;
         animator.SetBool(AnimIsTerrified, true);
+        animator.SetTrigger(AnimHit);
 
         yield return new WaitForSeconds(vulnerableDuration);
 
+        // Proceed to next wave
         if (currentState == BossState.VulnerableTerrified)
         {
             StartCoroutine(StartSpawningPhase());
         }
     }
 
-    public void TakeDamage(float amount)
+    private IEnumerator FinalBossDefeatSequence()
     {
-        if (currentState != BossState.VulnerableTerrified) return;
+        currentState = BossState.VulnerableTerrified;
+        Debug.Log("[BossAI] Final wave cleared! Defeating Boss...");
 
-        currentHealth -= amount;
+        if (shieldVisual != null) shieldVisual.SetActive(false);
+        testTerrifiedBool = true;
+        animator.SetBool(AnimIsTerrified, true);
         animator.SetTrigger(AnimHit);
 
-        if (currentHealth <= 0f)
+        yield return new WaitForSeconds(finalDeathDelay);
+
+        Die();
+    }
+
+    /// <summary>
+    /// Ensures an even, shuffled distribution of your 4 monster types for any wave count (2, 4, or 6).
+    /// </summary>
+    private List<GameObject> BuildShuffledMonsterPool(int countNeeded)
+    {
+        List<GameObject> pool = new List<GameObject>();
+
+        while (pool.Count < countNeeded)
         {
-            Die();
+            List<GameObject> batch = new List<GameObject>(waveMonsterPrefabs);
+            // Fisher-Yates shuffle
+            for (int i = batch.Count - 1; i > 0; i--)
+            {
+                int rand = Random.Range(0, i + 1);
+                GameObject temp = batch[i];
+                batch[i] = batch[rand];
+                batch[rand] = temp;
+            }
+            pool.AddRange(batch);
         }
+
+        return pool.GetRange(0, countNeeded);
+    }
+
+    private List<Transform> GetShuffledSpawnPoints()
+    {
+        List<Transform> spawns = new List<Transform>(spawnPoints);
+        for (int i = spawns.Count - 1; i > 0; i--)
+        {
+            int rand = Random.Range(0, i + 1);
+            Transform temp = spawns[i];
+            spawns[i] = spawns[rand];
+            spawns[rand] = temp;
+        }
+        return spawns;
     }
 
     private void CleanupDeadMonstersInList()
@@ -254,7 +325,7 @@ public class BossAI : MonoBehaviour
         testTerrifiedBool = false;
         animator.SetBool(AnimIsTerrified, false);
         animator.SetTrigger(AnimDie);
-        
+
         if (GetComponent<Collider>() != null) GetComponent<Collider>().enabled = false;
         this.enabled = false;
     }
