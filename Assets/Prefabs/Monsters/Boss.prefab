@@ -25,7 +25,7 @@ Transform:
   m_GameObject: {fileID: 2893727720878577172}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -1, y: 0.1, z: -8.8}
+  m_LocalPosition: {x: 2.3, y: 0.1, z: -5.12}
   m_LocalScale: {x: 0.4, y: 0.4, z: 0.4}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -56,7 +56,7 @@ Transform:
   m_GameObject: {fileID: 3068589971250039143}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 10.216761, y: 0.1, z: -3.1702213}
+  m_LocalPosition: {x: -4, y: 0.1, z: -3.1702213}
   m_LocalScale: {x: 0.4, y: 0.4, z: 0.4}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -87,7 +87,7 @@ Transform:
   m_GameObject: {fileID: 4611918997253087445}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 2.9, y: 0.1, z: -12.04}
+  m_LocalPosition: {x: 3.8, y: 0.1, z: -0.23}
   m_LocalScale: {x: 0.4, y: 0.4, z: 0.4}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -118,7 +118,7 @@ Transform:
   m_GameObject: {fileID: 6070606969273983844}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -11, y: 0.1, z: -0.2305603}
+  m_LocalPosition: {x: -4.64, y: 0.1, z: -0.2305603}
   m_LocalScale: {x: 0.4, y: 0.4, z: 0.4}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -132,6 +132,18 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: -8679921383154817045, guid: bb4466292c89ccc41aaf57249a92b5fd, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bb4466292c89ccc41aaf57249a92b5fd, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: -8679921383154817045, guid: bb4466292c89ccc41aaf57249a92b5fd, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 2
+      objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: bb4466292c89ccc41aaf57249a92b5fd, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
@@ -238,8 +250,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c02f59dd44723734aa481e86e4965013, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BossAI
-  maxHealth: 100
-  currentHealth: 0
+  monstersPerWave: 020000000400000006000000i
+  currentWave: 0
   currentState: 0
   waveMonsterPrefabs:
   - {fileID: 2502937323731467582, guid: 282a2c3a5efe74043b2d85804d11dcce, type: 3}
@@ -250,7 +262,9 @@ MonoBehaviour:
   - {fileID: 835274938372905570}
   - {fileID: 3312778531073410706}
   - {fileID: 2909694893344169182}
+  staggerSpawnInterval: 0.4
   vulnerableDuration: 8
+  finalDeathDelay: 2
   playerTransform: {fileID: 0}
   shieldVisual: {fileID: 0}
   testCastSpellTrigger: 0
