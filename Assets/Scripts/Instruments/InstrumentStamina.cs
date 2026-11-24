@@ -5,6 +5,13 @@ public class InstrumentStamina : MonoBehaviour
 {
     public static InstrumentStamina Instance;
 
+    /// <summary>
+    /// Master switch for attacking (playing an instrument). Turned off for the first,
+    /// non-combat visit to the concert hall and turned on in the backrooms and the
+    /// second concert-hall visit.
+    /// </summary>
+    public static bool AttackEnabled = true;
+
     [Header("Stamina")]
     public float maxStamina = 100f;
     public float drainPerSecond = 20f;       // while an instrument is played continuously
@@ -30,7 +37,7 @@ public class InstrumentStamina : MonoBehaviour
     }
 
     // True if the player is allowed to play right now
-    public static bool Available => Instance == null || (!Instance.Exhausted && Instance.Current > 0f);
+    public static bool Available => AttackEnabled && (Instance == null || (!Instance.Exhausted && Instance.Current > 0f));
 
     // Call every frame while a continuous instrument (trumpet, violin) is playing
     public static void ReportPlaying()

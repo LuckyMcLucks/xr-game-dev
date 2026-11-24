@@ -39,6 +39,22 @@ namespace XRGameDev.Concerthall
         // Dark, slightly blue ambient so the hall reads as unlit where no fixture reaches.
         static readonly Color DarkAmbient = new Color(0.035f, 0.033f, 0.05f, 1f);
 
+        // --- Glow plane -----------------------------------------------------------
+        // The FBX ships a tilted 300x96 backdrop quad named "Plane". It has no emission
+        // in the source, so it renders as flat grey. Give it a warm HDR emission that
+        // matches the hall fixtures; the project's Bloom (threshold 1) then picks it up.
+        const string GlowPlaneName = "Plane";
+        const string GlowMaterialPath = "Assets/Materials/ConcerthallGlowPlane.mat";
+        const string ModelName = "匹诺康尼大剧院";
+
+        // Deep amber taken from the hall fixtures, darkened to sit with the moody
+        // interior instead of reading as a plain warm white.
+        static readonly Color GlowColor = new Color(0.85f, 0.38f, 0.1f, 1f);
+
+        // Multiplied into GlowColor to push it past the Bloom threshold of 1.
+        // Lower towards 1 for a subtle wash, raise for a hot panel.
+        const float GlowIntensity = 2f;
+
         // FBX Intensity ratios extracted from the source model:
         // 10,000,000 -> 1.0   |   30,000,000 -> 3.0   |   1,000,000 -> 0.1
         static readonly Dictionary<string, float> IntensityMultiplier = new Dictionary<string, float>
@@ -211,6 +227,96 @@ namespace XRGameDev.Concerthall
 
             Lightmapping.BakeAsync();
             Debug.Log($"[Concerthall] Marked {marked} objects Contribute GI and started a bake.");
+        }
+
+        [MenuItem("Tools/Concerthall/Apply Glow Plane")]
+        public static void ApplyGlowPlane()
+        {
+            if (EditorApplication.isPlaying)
+            {
+                EditorUtility.DisplayDialog("Concerthall Glow", "Exit Play Mode first.", "OK");
+                return;
+            }
+
+            // 1. Find the "Plane" card inside the imported theatre model. Match the name
+            //    exactly so "Plane.001" (the ground sheet) is left alone.
+            Transform plane = null;
+            foreach (var go in UnityEngine.SceneManagement.SceneManager
+                         .GetActiveScene().GetRootGameObjects())
+            {
+                if (go.name.Trim() != ModelName) continue;
+                plane = go.GetComponentsInChildren<Transform>(true)
+                    .FirstOrDefault(t => t.name == GlowPlaneName);
+                break;
+            }
+
+            var renderer = plane != null ? plane.GetComponent<Renderer>() : null;
+            if (renderer == null)
+            {
+                EditorUtility.DisplayDialog(
+                    "Concerthall Glow",
+                    $"Could not find a renderable \"{GlowPlaneName}\" object under the " +
+                    $"\"{ModelName}\" model in this scene.",
+                    "OK");
+                return;
+            }
+
+            // 2. Load (or create) the emissive material.
+            var material = AssetDatabase.LoadAssetAtPath<Material>(GlowMaterialPath);
+            if (material == null)
+            {
+                var shader = Shader.Find("Universal Render Pipeline/Lit");
+                if (shader == null)
+                {
+                    EditorUtility.DisplayDialog(
+                        "Concerthall Glow", "URP/Lit shader not found in this project.", "OK");
+                    return;
+                }
+
+                if (!AssetDatabase.IsValidFolder("Assets/Materials"))
+                    AssetDatabase.CreateFolder("Assets", "Materials");
+
+                material = new Material(shader) { name = "ConcerthallGlowPlane" };
+                AssetDatabase.CreateAsset(material, GlowMaterialPath);
+            }
+
+            // Dark base so the card reads as a lit panel rather than a grey sheet, plus a
+            // warm HDR emission. The emission is above Bloom's threshold of 1, so the post
+            // effect picks it up with no extra Volume setup.
+            material.SetColor("_BaseColor", GlowColor * 0.2f);
+            material.EnableKeyword("_EMISSION");
+            material.SetColor("_EmissionColor", GlowColor * GlowIntensity);
+            material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.BakedEmissive;
+
+            // The FBX quad faces away from the audience, so a single-sided shader hides the
+            // emission. Render both faces (URP/Lit "Render Face" = Both) so the glow shows
+            // from either side of the card.
+            material.SetFloat("_Cull", 0f);
+            EditorUtility.SetDirty(material);
+
+            // 3. Assign it to the "Plane" renderer only.
+            Undo.RecordObject(renderer, "Apply Concerthall Glow Plane");
+            var slots = renderer.sharedMaterials;
+            for (int i = 0; i < slots.Length; i++)
+                slots[i] = material;
+            renderer.sharedMaterials = slots;
+
+            var scene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+            AssetDatabase.SaveAssets();
+
+            Debug.Log(
+                $"[Concerthall] Applied emissive glow ({GlowColor * GlowIntensity}) to " +
+                $"\"{GlowPlaneName}\" via {GlowMaterialPath}. Bloom (threshold 1) should pick it up.",
+                renderer);
+
+            EditorUtility.DisplayDialog(
+                "Concerthall Glow",
+                $"Applied the emissive glow to \"{GlowPlaneName}\" only (\"{GlowPlaneName}.001\" " +
+                "untouched).\n\n" +
+                "Tune the strength with GlowIntensity in ConcerthallLightSetup.cs.",
+                "OK");
         }
     }
 }

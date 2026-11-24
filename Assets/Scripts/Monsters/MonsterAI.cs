@@ -210,6 +210,9 @@ public class MonsterAI : MonoBehaviour
     {
         isBanished = true;
 
+        // Progress bookkeeping for the "backrooms cleared" return teleport.
+        GameSession.MonstersDefeated++;
+
         // 1. Immediately disable movement and colliders so it can't hurt or block the player
         if (agent != null && agent.enabled)
         {

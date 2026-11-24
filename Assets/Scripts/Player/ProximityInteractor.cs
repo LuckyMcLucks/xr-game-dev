@@ -20,7 +20,7 @@ public class ProximityInteractor : MonoBehaviour
     public float proximityRadius = 1.6f;
 
     [Tooltip("Tint applied to an object while it is in range.")]
-    public Color glowColor = new Color(1f, 0.85f, 0.2f, 1f);
+    public Color glowColor = new(1f, 0.85f, 0.2f, 1f);
 
     [Header("Input")]
     [Tooltip("Grab / release button. Left controller X by default.")]
@@ -31,7 +31,7 @@ public class ProximityInteractor : MonoBehaviour
     public Transform hand;
 
     [Tooltip("Local offset from the hand that a held object sits at.")]
-    public Vector3 holdOffset = new Vector3(0f, 0f, 0.08f);
+    public Vector3 holdOffset = new(0f, 0f, 0.08f);
 
     static readonly int k_BaseColor = Shader.PropertyToID("_BaseColor");
     static readonly int k_Color = Shader.PropertyToID("_Color");
@@ -95,7 +95,7 @@ public class ProximityInteractor : MonoBehaviour
     {
         if (candidates == null || Time.time >= nextCandidateRefresh)
         {
-            candidates = FindObjectsByType<XRGrabInteractable>(FindObjectsSortMode.None);
+            candidates = FindObjectsByType<XRGrabInteractable>();
             nextCandidateRefresh = Time.time + 0.5f;
         }
 
@@ -199,7 +199,7 @@ public class ProximityInteractor : MonoBehaviour
                 continue;
             }
 
-            if (block == null) block = new MaterialPropertyBlock();
+            block ??= new MaterialPropertyBlock();
             block.Clear();
             block.SetColor(k_BaseColor, glowColor);
             block.SetColor(k_Color, glowColor);
@@ -215,7 +215,7 @@ public class ProximityInteractor : MonoBehaviour
         var controller = GameObject.Find("Left Controller");
         if (controller != null) return controller.transform;
 
-        var interactors = FindObjectsByType<XRBaseInteractor>(FindObjectsSortMode.None);
+        var interactors = FindObjectsByType<XRBaseInteractor>();
         for (int i = 0; i < interactors.Length; i++)
         {
             var interactor = interactors[i];

@@ -21,7 +21,7 @@ public class StartCameraPose : MonoBehaviour
     void Awake()
     {
         if (xrOrigin == null)
-            xrOrigin = FindFirstObjectByType<XROrigin>();
+            xrOrigin = FindAnyObjectByType<XROrigin>();
 
         if (xrOrigin == null)
         {
