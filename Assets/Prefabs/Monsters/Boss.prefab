@@ -146,15 +146,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: bb4466292c89ccc41aaf57249a92b5fd, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 0
+      value: 5.6264
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: bb4466292c89ccc41aaf57249a92b5fd, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1
+      value: 13.63281
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: bb4466292c89ccc41aaf57249a92b5fd, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 20
+      value: -7.29009
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: bb4466292c89ccc41aaf57249a92b5fd, type: 3}
       propertyPath: m_LocalRotation.w
@@ -211,6 +211,11 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 9193429277296498282}
   m_SourcePrefab: {fileID: 100100000, guid: bb4466292c89ccc41aaf57249a92b5fd, type: 3}
+--- !u!4 &107095211676770100 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 1852576806548013000, guid: bb4466292c89ccc41aaf57249a92b5fd, type: 3}
+  m_PrefabInstance: {fileID: 1786194354911076604}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1443614360466709933 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: bb4466292c89ccc41aaf57249a92b5fd, type: 3}
@@ -263,14 +268,20 @@ MonoBehaviour:
   - {fileID: 3312778531073410706}
   - {fileID: 2909694893344169182}
   staggerSpawnInterval: 0.4
+  sonicWavePrefab: {fileID: 6748255360521341227, guid: 2b340b7eaf8f2664ca880cd86c0cf96a, type: 3}
+  batonTipPoint: {fileID: 107095211676770100}
+  attackInterval: 6.5
+  batonAttackTelegraphSfx: {fileID: 0}
+  arenaLights: []
+  battleBgmSource: {fileID: 0}
+  blackoutSfx: {fileID: 0}
+  blackoutDuration: 7
+  currentWeaknessInstrument: 0
+  bossWeaknessLight: {fileID: 0}
   vulnerableDuration: 8
-  finalDeathDelay: 2
+  bossStaggerSfx: {fileID: 0}
   playerTransform: {fileID: 0}
   shieldVisual: {fileID: 0}
-  testCastSpellTrigger: 0
-  testTerrifiedBool: 0
-  testTakeHitTrigger: 0
-  testDeathTrigger: 0
 --- !u!4 &2252766491218085655 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: bb4466292c89ccc41aaf57249a92b5fd, type: 3}

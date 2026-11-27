@@ -19,6 +19,18 @@ public class BossIntroCutscene : MonoBehaviour
     public Light stageSpotlight;
     public Transform playerTransform;
 
+    [Header("Transition VFX Prefabs")]
+    [Tooltip("Optional smoke/dissolve particle prefab spawned where the piano vanishes.")]
+    public GameObject pianoVanishVfxPrefab;
+    [Tooltip("Dramatic particle/portal/smoke burst prefab spawned where the Combat Boss appears.")]
+    public GameObject bossSpawnVfxPrefab;
+    [Tooltip("Vertical offset for the VFX prefabs (e.g., 1.0 so it spawns at chest/center height rather than floor).")]
+    public float vfxHeightOffset = 1.0f;
+    [Tooltip("Delay after spawning the boss VFX before the boss mesh actually pops in (hides the pop-in inside the burst).")]
+    public float bossAppearDelay = 0.25f;
+    [Tooltip("How long before spawned VFX objects are automatically destroyed.")]
+    public float vfxLifetime = 4.0f;
+
     [Header("Audio References")]
     [Tooltip("AudioSource playing the looping slow piano BGM.")]
     public AudioSource pianoBgmSource;
@@ -27,6 +39,8 @@ public class BossIntroCutscene : MonoBehaviour
     public AudioClip bossDialogueClip;
     [Tooltip("Optional heavy power-down / slam SFX when the spotlight cuts out.")]
     public AudioClip lightsOutSfx;
+    [Tooltip("Optional burst/thunder/roar SFX when the Combat Boss manifests in the VFX.")]
+    public AudioClip bossSpawnSfx;
 
     [Header("Timing Options")]
     [Tooltip("If true, waits for the full dialogue audio to finish before swapping to the fight, even if the player runs closer.")]
@@ -104,51 +118,76 @@ public class BossIntroCutscene : MonoBehaviour
         {
             if (bossVoiceSource != null)
             {
-                // Temporarily switch to 2D so the blackout slam feels visceral and loud everywhere
                 bossVoiceSource.spatialBlend = 0f;
-                bossVoiceSource.PlayOneShot(lightsOutSfx, 1.5f); // PlayOneShot supports > 1.0f volume scale
+                bossVoiceSource.PlayOneShot(lightsOutSfx, 1.5f);
             }
             else
             {
-                // Fallback: spawn at the player's camera position instead of the distant stage
                 Vector3 earPos = Camera.main != null ? Camera.main.transform.position : transform.position;
                 AudioSource.PlayClipAtPoint(lightsOutSfx, earPos, 1.0f);
             }
         }
 
-        // 2. Shut off Spotlight and disable the Piano + Performer GameObject
-        if (stageSpotlight != null) stageSpotlight.enabled = false;
-        if (pianoPerformerObject != null) pianoPerformerObject.SetActive(false);
+        // 2. Spawn vanish effect at the piano's position, shut off Spotlight, and disable Piano + Performer
+        if (pianoPerformerObject != null)
+        {
+            if (pianoVanishVfxPrefab != null)
+            {
+                Vector3 vanishPos = pianoPerformerObject.transform.position + Vector3.up * vfxHeightOffset;
+                GameObject vanishVfx = Instantiate(pianoVanishVfxPrefab, vanishPos, Quaternion.identity);
+                Destroy(vanishVfx, vfxLifetime);
+            }
 
-        // Brief 1-second pause in the dark for tension
+            pianoPerformerObject.SetActive(false);
+        }
+
+        if (stageSpotlight != null) stageSpotlight.enabled = false;
+
+        // Brief pause in the dark for tension before the boss manifests
         yield return new WaitForSeconds(1.0f);
 
-        // 3. Activate or Spawn the Combat Boss
+        // Determine spawn position and rotation for the Combat Boss
+        Vector3 spawnPos = bossSpawnPoint != null ? bossSpawnPoint.position : transform.position;
+        Quaternion spawnRot = bossSpawnPoint != null ? bossSpawnPoint.rotation : transform.rotation;
+
+        // 3. Trigger Boss Spawn Effect & Sound first so the mesh emerges from inside the particle burst
+        if (bossSpawnVfxPrefab != null)
+        {
+            Vector3 vfxPos = spawnPos + Vector3.up * vfxHeightOffset;
+            GameObject spawnVfx = Instantiate(bossSpawnVfxPrefab, vfxPos, spawnRot);
+            Destroy(spawnVfx, vfxLifetime);
+        }
+
+        if (bossSpawnSfx != null)
+        {
+            AudioSource.PlayClipAtPoint(bossSpawnSfx, spawnPos, 1.0f);
+        }
+
+        // Wait a fraction of a second for particles to expand and cover the spawn point
+        if (bossAppearDelay > 0f)
+        {
+            yield return new WaitForSeconds(bossAppearDelay);
+        }
+
+        // 4. Activate or Spawn the Combat Boss
         GameObject activeBoss = null;
 
         if (combatBossObject != null)
         {
-            // Check if combatBossObject is already in the scene (inactive) or a Prefab asset
             if (combatBossObject.scene.IsValid())
             {
-                if (bossSpawnPoint != null)
-                {
-                    combatBossObject.transform.position = bossSpawnPoint.position;
-                    combatBossObject.transform.rotation = bossSpawnPoint.rotation;
-                }
+                combatBossObject.transform.position = spawnPos;
+                combatBossObject.transform.rotation = spawnRot;
                 combatBossObject.SetActive(true);
                 activeBoss = combatBossObject;
             }
             else
             {
-                // It's a Prefab, so Instantiate it
-                Vector3 spawnPos = bossSpawnPoint != null ? bossSpawnPoint.position : transform.position;
-                Quaternion spawnRot = bossSpawnPoint != null ? bossSpawnPoint.rotation : transform.rotation;
                 activeBoss = Instantiate(combatBossObject, spawnPos, spawnRot);
             }
         }
 
-        // 4. Start the BossAI battle loop immediately
+        // 5. Start the BossAI battle loop immediately
         if (activeBoss != null)
         {
             BossAI ai = activeBoss.GetComponent<BossAI>();

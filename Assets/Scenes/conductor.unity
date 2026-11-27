@@ -1477,15 +1477,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 078aa8363cae6fd46b0077f945750593, type: 3}
       propertyPath: m_LocalScale.x
-      value: 1.8
+      value: 3.6
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 078aa8363cae6fd46b0077f945750593, type: 3}
       propertyPath: m_LocalScale.y
-      value: 1.8
+      value: 3.6
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 078aa8363cae6fd46b0077f945750593, type: 3}
       propertyPath: m_LocalScale.z
-      value: 1.8
+      value: 3.6
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 078aa8363cae6fd46b0077f945750593, type: 3}
       propertyPath: m_LocalPosition.x
@@ -1908,10 +1908,16 @@ MonoBehaviour:
   bossSpawnPoint: {fileID: 1881535684}
   stageSpotlight: {fileID: 948487831}
   playerTransform: {fileID: 0}
+  pianoVanishVfxPrefab: {fileID: 5072087411467350886, guid: 2d738f8ce16aace408e214801ae5cbfd, type: 3}
+  bossSpawnVfxPrefab: {fileID: 5072087411467350886, guid: 2d738f8ce16aace408e214801ae5cbfd, type: 3}
+  vfxHeightOffset: 1
+  bossAppearDelay: 0.25
+  vfxLifetime: 4
   pianoBgmSource: {fileID: 1640513047}
   bossVoiceSource: {fileID: 1640513047}
   bossDialogueClip: {fileID: 8300000, guid: c2c3a10de3c0e7d4c959ae446545290c, type: 3}
   lightsOutSfx: {fileID: 8300000, guid: 6a680be4e5114f24fbb2cc758e9e28d2, type: 3}
+  bossSpawnSfx: {fileID: 0}
   waitForDialogueToFinish: 1
 --- !u!4 &1758828895
 Transform:

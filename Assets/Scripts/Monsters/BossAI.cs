@@ -14,42 +14,50 @@ public enum BossState
 public class BossAI : MonoBehaviour
 {
     [Header("Wave Progression Settings")]
-    [Tooltip("Number of monsters to spawn in each wave (e.g., Wave 1 = 2, Wave 2 = 4, Wave 3 = 6).")]
     public int[] monstersPerWave = new int[] { 2, 4, 6 };
-    [Tooltip("Current active wave (1-based index for easy reading in Inspector).")]
     public int currentWave = 0;
     public BossState currentState;
 
     [Header("Spawn Settings")]
-    [Tooltip("Your 4 monster prefabs (Trumpet, Drums, Violin, Flute).")]
     public List<GameObject> waveMonsterPrefabs;
-    [Tooltip("Your 4 spawn point transforms around the stage.")]
     public Transform[] spawnPoints;
-    [Tooltip("Slight delay between spawning each monster in a wave so they don't overlap.")]
     public float staggerSpawnInterval = 0.4f;
 
-    [Header("State Timers")]
-    [Tooltip("How long the boss stays terrified between waves before summoning the next wave.")]
-    public float vulnerableDuration = 5f;
-    [Tooltip("Brief terrified reaction before the boss dies after the final wave is defeated.")]
-    public float finalDeathDelay = 2.0f;
+    [Header("Active Boss Attacks (Sonic Wave)")]
+    [Tooltip("Prefab of a dark sonic wave projectile that travels toward the player.")]
+    public GameObject sonicWavePrefab;
+    public Transform batonTipPoint;
+    public float attackInterval = 6.5f;
+    public AudioClip batonAttackTelegraphSfx;
+
+    [Header("Horror Events (Blackout & Escalation)")]
+    [Tooltip("Arena lights that flicker/shut off during a Crescendo Blackout.")]
+    public Light[] arenaLights;
+    [Tooltip("AudioSource playing the intense boss battle BGM.")]
+    public AudioSource battleBgmSource;
+    public AudioClip blackoutSfx;
+    public float blackoutDuration = 7f;
+
+    [Header("Interactive Instrument Counter-Play")]
+    [Tooltip("The specific instrument required to strike the boss while he is terrified.")]
+    public InstrumentType currentWeaknessInstrument;
+    [Tooltip("Optional visual indicator (e.g., colored spotlight or floating icon) showing boss weakness.")]
+    public Light bossWeaknessLight;
+    public float vulnerableDuration = 10f;
+    public AudioClip bossStaggerSfx;
 
     [Header("References")]
     public Transform playerTransform;
     public GameObject shieldVisual;
 
-    [Header("--- MANUAL ANIMATION TESTING (PLAY MODE ONLY) ---")]
-    public bool testCastSpellTrigger;
-    public bool testTerrifiedBool;
-    private bool previousTerrifiedValue = false;
-    public bool testTakeHitTrigger;
-    public bool testDeathTrigger;
-
     private Animator animator;
     private List<GameObject> activeWaveMonsters = new List<GameObject>();
+    private float attackTimer;
+    private bool blackoutTriggeredThisWave = false;
 
-    // Animator Parameter Hashes
+    // Animator Hashes
     private readonly int AnimIsTerrified = Animator.StringToHash("IsTerrified");
+    private readonly int AnimSummonSpell = Animator.StringToHash("SummonSpell");
     private readonly int AnimCastSpell = Animator.StringToHash("CastSpell");
     private readonly int AnimHit = Animator.StringToHash("TakeHit");
     private readonly int AnimDie = Animator.StringToHash("Die");
@@ -61,126 +69,125 @@ public class BossAI : MonoBehaviour
 
     void Start()
     {
-        if (playerTransform == null && Camera.main != null)
+        if (playerTransform == null)
         {
-            playerTransform = Camera.main.transform;
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null) playerTransform = playerObj.transform;
         }
+
+        if (bossWeaknessLight != null) bossWeaknessLight.enabled = false;
     }
 
     void Update()
     {
-        CheckInspectorAnimationTriggers();
+        if (currentState == BossState.Dead || playerTransform == null) return;
 
-        // Keep boss facing the player during battle
-        if (currentState != BossState.Dead && playerTransform != null)
+        // Smoothly rotate boss to face player
+        Vector3 targetDir = playerTransform.position - transform.position;
+        targetDir.y = 0f;
+        if (targetDir != Vector3.zero)
         {
-            Vector3 targetDir = playerTransform.position - transform.position;
-            targetDir.y = 0f;
-            if (targetDir != Vector3.zero)
-            {
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(targetDir), Time.deltaTime * 3f);
-            }
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(targetDir), Time.deltaTime * 3.5f);
         }
 
-        // Check if all monsters in the current wave have been banished
         if (currentState == BossState.Commanding)
         {
+            HandleActiveBossAttacks();
+            HandleMidWaveBlackout();
+
             CleanupDeadMonstersInList();
             if (activeWaveMonsters.Count == 0)
             {
-                OnWaveCleared();
+                StartCoroutine(EnterVulnerableState());
             }
         }
     }
 
-    private void OnWaveCleared()
+    // --- ACTIVE BOSS ATTACKS ---
+    private void HandleActiveBossAttacks()
     {
-        // Check if this was the final wave
-        if (currentWave >= monstersPerWave.Length)
+        if (sonicWavePrefab == null) return;
+
+        attackTimer -= Time.deltaTime;
+        if (attackTimer <= 0f)
         {
-            StartCoroutine(FinalBossDefeatSequence());
-        }
-        else
-        {
-            StartCoroutine(EnterVulnerableState());
+            // Attack faster in later waves
+            attackTimer = Mathf.Max(3.5f, attackInterval - (currentWave * 0.8f));
+            StartCoroutine(PerformSonicWaveAttack());
         }
     }
 
-    // --- MANUAL INSPECTOR TRIGGER LOGIC ---
-    private void CheckInspectorAnimationTriggers()
+    private IEnumerator PerformSonicWaveAttack()
     {
-        if (testCastSpellTrigger)
+        // 1. Audio telegraph so VR player knows to look at the boss and dodge
+        if (batonAttackTelegraphSfx != null)
         {
-            testCastSpellTrigger = false;
-            TriggerSpellCastAnimation();
+            AudioSource.PlayClipAtPoint(batonAttackTelegraphSfx, transform.position, 1.0f);
         }
 
-        if (testTerrifiedBool != previousTerrifiedValue)
-        {
-            previousTerrifiedValue = testTerrifiedBool;
-            if (animator != null)
-            {
-                animator.SetBool(AnimIsTerrified, testTerrifiedBool);
-            }
-        }
-
-        if (testTakeHitTrigger)
-        {
-            testTakeHitTrigger = false;
-            TriggerTakeHitAnimation();
-        }
-
-        if (testDeathTrigger)
-        {
-            testDeathTrigger = false;
-            TriggerDeathAnimation();
-        }
-    }
-
-    [ContextMenu("Test Animation: Spell Cast")]
-    public void TriggerSpellCastAnimation()
-    {
-        if (animator == null) animator = GetComponent<Animator>();
         animator.SetTrigger(AnimCastSpell);
+
+        // Brief windup so player can react
+        yield return new WaitForSeconds(0.9f);
+
+        if (currentState != BossState.Commanding || playerTransform == null) yield break;
+
+        // 2. Spawn Sonic Wave aimed at the player's current position
+        Vector3 origin = batonTipPoint != null ? batonTipPoint.position : (transform.position + Vector3.up * 1.4f);
+        Vector3 aimTarget = playerTransform.position + Vector3.up * 1.0f;
+        Quaternion rotation = Quaternion.LookRotation((aimTarget - origin).normalized);
+
+        Instantiate(sonicWavePrefab, origin, rotation);
     }
 
-    [ContextMenu("Test Animation: Toggle Terrified ON")]
-    public void EnableTerrifiedAnimation()
+    // --- SENSORY DEPRIVATION BLACKOUT ---
+    private void HandleMidWaveBlackout()
     {
-        if (animator == null) animator = GetComponent<Animator>();
-        testTerrifiedBool = true;
-        animator.SetBool(AnimIsTerrified, true);
+        // Trigger a terrifying blackout once per wave starting from Wave 2 when half the wave is dead
+        if (currentWave >= 2 && !blackoutTriggeredThisWave && activeWaveMonsters.Count <= monstersPerWave[currentWave - 1] / 2)
+        {
+            blackoutTriggeredThisWave = true;
+            StartCoroutine(CrescendoBlackoutRoutine());
+        }
     }
 
-    [ContextMenu("Test Animation: Toggle Terrified OFF")]
-    public void DisableTerrifiedAnimation()
+    private IEnumerator CrescendoBlackoutRoutine()
     {
-        if (animator == null) animator = GetComponent<Animator>();
-        testTerrifiedBool = false;
-        animator.SetBool(AnimIsTerrified, false);
+        if (blackoutSfx != null)
+        {
+            Vector3 earPos = Camera.main != null ? Camera.main.transform.position : transform.position;
+            AudioSource.PlayClipAtPoint(blackoutSfx, earPos, 1.0f);
+        }
+
+        // Turn off arena lights
+        SetArenaLights(false);
+
+        yield return new WaitForSeconds(blackoutDuration);
+
+        // Restore arena lights
+        SetArenaLights(true);
     }
 
-    [ContextMenu("Test Animation: Take Hit")]
-    public void TriggerTakeHitAnimation()
+    private void SetArenaLights(bool state)
     {
-        if (animator == null) animator = GetComponent<Animator>();
-        animator.SetTrigger(AnimHit);
+        if (arenaLights == null) return;
+        foreach (Light l in arenaLights)
+        {
+            if (l != null) l.enabled = state;
+        }
     }
 
-    [ContextMenu("Test Animation: Death")]
-    public void TriggerDeathAnimation()
-    {
-        if (animator == null) animator = GetComponent<Animator>();
-        animator.SetTrigger(AnimDie);
-    }
-
-    // --- GAMEPLAY PHASES ---
-
+    // --- WAVE & VULNERABLE PHASES ---
     [ContextMenu("Start Boss Fight (Wave 1)")]
     public void ForceStartSpawningPhase()
     {
         StopAllCoroutines();
-        currentWave = 0; // Reset to 0 so the first StartSpawningPhase() increments to Wave 1
+        currentWave = 0;
+        if (battleBgmSource != null)
+        {
+            battleBgmSource.pitch = 1.0f;
+            battleBgmSource.Play();
+        }
         StartCoroutine(StartSpawningPhase());
     }
 
@@ -190,127 +197,123 @@ public class BossAI : MonoBehaviour
 
         currentWave++;
         currentState = BossState.SpawningWave;
+        blackoutTriggeredThisWave = false;
+        SetArenaLights(true);
+
+        if (shieldVisual != null) shieldVisual.SetActive(true);
+        if (bossWeaknessLight != null) bossWeaknessLight.enabled = false;
+
+        // Escalate BGM tempo with each wave
+        if (battleBgmSource != null)
+        {
+            battleBgmSource.pitch = 1.0f + ((currentWave - 1) * 0.1f);
+        }
+
+        animator.SetBool(AnimIsTerrified, false);
+        animator.SetTrigger(AnimSummonSpell);
+
+        yield return new WaitForSeconds(1.5f);
 
         int waveIndex = Mathf.Clamp(currentWave - 1, 0, monstersPerWave.Length - 1);
         int spawnCount = monstersPerWave[waveIndex];
 
-        Debug.Log($"[BossAI] Starting Wave {currentWave}/{monstersPerWave.Length} — Spawning {spawnCount} monsters!");
-
-        if (shieldVisual != null) shieldVisual.SetActive(true);
-
-        testTerrifiedBool = false;
-        animator.SetBool(AnimIsTerrified, false);
-        animator.SetTrigger(AnimCastSpell);
-
-        // Wait for spell-cast animation windup
-        yield return new WaitForSeconds(1.5f);
-
         activeWaveMonsters.Clear();
-
-        if (waveMonsterPrefabs == null || waveMonsterPrefabs.Count == 0 || spawnPoints == null || spawnPoints.Length == 0)
-        {
-            Debug.LogWarning("[BossAI] Missing Monster Prefabs or Spawn Points in Inspector!");
-            yield break;
-        }
-
-        // Create shuffled lists so monster types and spawn points are varied each wave
-        List<GameObject> monsterPool = BuildShuffledMonsterPool(spawnCount);
-        List<Transform> shuffledSpawns = GetShuffledSpawnPoints();
-
         for (int i = 0; i < spawnCount; i++)
         {
-            GameObject prefabToSpawn = monsterPool[i];
-            Transform spawnPoint = shuffledSpawns[i % shuffledSpawns.Count];
+            if (waveMonsterPrefabs.Count == 0 || spawnPoints.Length == 0) break;
 
-            GameObject monster = Instantiate(prefabToSpawn, spawnPoint.position, spawnPoint.rotation);
+            GameObject prefab = waveMonsterPrefabs[Random.Range(0, waveMonsterPrefabs.Count)];
+            Transform spawnPoint = spawnPoints[i % spawnPoints.Length];
 
-            MonsterAI monsterAI = monster.GetComponent<MonsterAI>();
-            if (monsterAI != null)
-            {
-                monsterAI.playerTransform = playerTransform;
-            }
+            GameObject monster = Instantiate(prefab, spawnPoint.position, spawnPoint.rotation);
+            MonsterAI ai = monster.GetComponent<MonsterAI>();
+            if (ai != null) ai.playerTransform = playerTransform;
 
             activeWaveMonsters.Add(monster);
 
-            // Stagger spawns slightly so when spawning 6 monsters across 4 points, they don't collide
             if (staggerSpawnInterval > 0f && i < spawnCount - 1)
             {
                 yield return new WaitForSeconds(staggerSpawnInterval);
             }
         }
 
+        attackTimer = 3.0f;
         currentState = BossState.Commanding;
     }
 
     private IEnumerator EnterVulnerableState()
     {
         currentState = BossState.VulnerableTerrified;
-        Debug.Log($"[BossAI] Wave {currentWave} cleared! Boss is terrified for {vulnerableDuration}s.");
+        SetArenaLights(true);
 
         if (shieldVisual != null) shieldVisual.SetActive(false);
-        testTerrifiedBool = true;
+
+        // Pick a random instrument weakness that the player must play at the boss!
+        currentWeaknessInstrument = (InstrumentType)Random.Range(0, 4);
+        UpdateWeaknessVisual(currentWeaknessInstrument);
+
         animator.SetBool(AnimIsTerrified, true);
         animator.SetTrigger(AnimHit);
 
-        yield return new WaitForSeconds(vulnerableDuration);
+        float timer = vulnerableDuration;
+        while (timer > 0f && currentState == BossState.VulnerableTerrified)
+        {
+            timer -= Time.deltaTime;
+            yield return null;
+        }
 
-        // Proceed to next wave
+        // If player failed to strike the boss in time, he recovers and summons the wave again!
         if (currentState == BossState.VulnerableTerrified)
         {
+            currentWave--; // Repeat the failed wave
             StartCoroutine(StartSpawningPhase());
         }
     }
 
-    private IEnumerator FinalBossDefeatSequence()
-    {
-        currentState = BossState.VulnerableTerrified;
-        Debug.Log("[BossAI] Final wave cleared! Defeating Boss...");
-
-        if (shieldVisual != null) shieldVisual.SetActive(false);
-        testTerrifiedBool = true;
-        animator.SetBool(AnimIsTerrified, true);
-        animator.SetTrigger(AnimHit);
-
-        yield return new WaitForSeconds(finalDeathDelay);
-
-        Die();
-    }
-
     /// <summary>
-    /// Ensures an even, shuffled distribution of your 4 monster types for any wave count (2, 4, or 6).
+    /// Call this from your Instrument scripts when played near the Boss!
     /// </summary>
-    private List<GameObject> BuildShuffledMonsterPool(int countNeeded)
+    public bool TryStrikeBossWithInstrument(InstrumentType playedInstrument)
     {
-        List<GameObject> pool = new List<GameObject>();
+        if (currentState != BossState.VulnerableTerrified) return false;
 
-        while (pool.Count < countNeeded)
+        if (playedInstrument == currentWeaknessInstrument)
         {
-            List<GameObject> batch = new List<GameObject>(waveMonsterPrefabs);
-            // Fisher-Yates shuffle
-            for (int i = batch.Count - 1; i > 0; i--)
+            if (bossWeaknessLight != null) bossWeaknessLight.enabled = false;
+            if (bossStaggerSfx != null) AudioSource.PlayClipAtPoint(bossStaggerSfx, transform.position, 1.0f);
+
+            animator.SetTrigger(AnimHit);
+
+            // Check if final wave was just broken
+            if (currentWave >= monstersPerWave.Length)
             {
-                int rand = Random.Range(0, i + 1);
-                GameObject temp = batch[i];
-                batch[i] = batch[rand];
-                batch[rand] = temp;
+                Die();
             }
-            pool.AddRange(batch);
+            else
+            {
+                StopAllCoroutines();
+                StartCoroutine(StartSpawningPhase());
+            }
+            return true;
         }
 
-        return pool.GetRange(0, countNeeded);
+        return false;
     }
 
-    private List<Transform> GetShuffledSpawnPoints()
+    private void UpdateWeaknessVisual(InstrumentType weakness)
     {
-        List<Transform> spawns = new List<Transform>(spawnPoints);
-        for (int i = spawns.Count - 1; i > 0; i--)
+        if (bossWeaknessLight == null) return;
+        bossWeaknessLight.enabled = true;
+
+        // Color-code the spotlight over the terrified boss so the player knows which instrument to use:
+        // Trumpet = Gold/Yellow, Drums = Red, Violin = Purple, Flute = Cyan/Blue
+        switch (weakness)
         {
-            int rand = Random.Range(0, i + 1);
-            Transform temp = spawns[i];
-            spawns[i] = spawns[rand];
-            spawns[rand] = temp;
+            case InstrumentType.Trumpet: bossWeaknessLight.color = Color.yellow; break;
+            case InstrumentType.Drums:   bossWeaknessLight.color = Color.red; break;
+            case InstrumentType.Violin:  bossWeaknessLight.color = new Color(0.7f, 0.2f, 1f); break;
+            case InstrumentType.Flute:   bossWeaknessLight.color = Color.cyan; break;
         }
-        return spawns;
     }
 
     private void CleanupDeadMonstersInList()
@@ -322,7 +325,11 @@ public class BossAI : MonoBehaviour
     {
         StopAllCoroutines();
         currentState = BossState.Dead;
-        testTerrifiedBool = false;
+        SetArenaLights(true);
+
+        if (battleBgmSource != null) battleBgmSource.Stop();
+        if (bossWeaknessLight != null) bossWeaknessLight.enabled = false;
+
         animator.SetBool(AnimIsTerrified, false);
         animator.SetTrigger(AnimDie);
 
