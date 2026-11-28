@@ -17,10 +17,11 @@ public class MonsterAI : MonoBehaviour
     [Header("Monster Classification")]
     [Tooltip("The specific instrument required to scare away or banish this monster.")]
     public InstrumentType requiredInstrument;
+
     [Header("Instrument Reaction")]
     public float hearDistance = 15f;
-    public float banishDistance = 4f;      
-    public float banishHoldTime = 0.5f;    
+    public float banishDistance = 4f;
+    public float banishHoldTime = 0.5f;
     public float fleeSpeed = 3.5f;
     public float fleeStep = 6f;
     private float lastHeardTime = -10f;
@@ -28,25 +29,25 @@ public class MonsterAI : MonoBehaviour
     private float banishTimer;
 
     [Header("Targets & Respawn")]
-    public Transform playerTransform; 
-    [Tooltip("Drag your central Backrooms hub Transform here, or tag an empty object 'Respawn'.")]
-    public Transform backroomsCenterPoint; 
+    public Transform playerTransform;
+    [Tooltip("Used in the Backrooms scene. Drag your central hub here or tag it 'Respawn'.")]
+    public Transform backroomsCenterPoint;
 
     [Header("Horror Pacing & Speeds")]
     [Tooltip("Slow, creepy stalking speed when far from the player.")]
     public float stalkSpeed = 1.8f;
     [Tooltip("Sudden burst sprint speed when close to the player.")]
-    public float sprintSpeed = 5.2f; 
+    public float sprintSpeed = 5.2f;
     [Tooltip("Distance at which the monster switches from stalking to sprinting.")]
     public float sprintTriggerDistance = 8f;
 
     [Header("Jumpscare Settings")]
     [Tooltip("Distance from player to trigger the in-your-face jumpscare.")]
-    public float jumpscareDistance = 1.6f; 
+    public float jumpscareDistance = 1.6f;
     [Tooltip("How close to the VR camera face the monster snaps during the scream.")]
-    public float faceSnapDistance = 0.85f; 
+    public float faceSnapDistance = 0.85f;
     [Tooltip("Vertical offset so the monster's head aligns with the player's eye level.")]
-    public float faceHeightOffset = -1.2f; 
+    public float faceHeightOffset = -1.2f;
     [Tooltip("Duration of the scream before teleporting the player back.")]
     public float jumpscareDuration = 2.2f;
     [Tooltip("Adjust if your 3D model's face is rotated (e.g., 180 if it turns its back to you).")]
@@ -54,23 +55,11 @@ public class MonsterAI : MonoBehaviour
 
     [Header("Audio Cues")]
     [Tooltip("Loud scream SFX played directly in the player's ears during the jumpscare.")]
-    public AudioClip jumpscareScreamClip; 
+    public AudioClip jumpscareScreamClip;
     [Tooltip("Optional screech when the monster spots you and starts sprinting.")]
-    public AudioClip aggroScreechClip; 
+    public AudioClip aggroScreechClip;
     [Tooltip("Sound played when the monster is successfully banished by the matching instrument.")]
     public AudioClip banishSfxClip;
-
-    private NavMeshAgent agent; 
-    private Animator animator; 
-    private AudioSource loopAudioSource; 
-
-    private bool isSprinting = false; 
-    private bool isJumpscaring = false; 
-    private bool isBanished = false;
-
-    // Animator Hashes
-    private readonly int AnimSpeed = Animator.StringToHash("Speed"); 
-    private readonly int AnimScream = Animator.StringToHash("Scream");
 
     [Header("Banishment VFX & Polish")]
     [Tooltip("Particle system prefab (e.g., dark smoke, ash, or glowing musical notes) spawned when banished.")]
@@ -81,7 +70,26 @@ public class MonsterAI : MonoBehaviour
     public float banishDuration = 1.2f;
     [Tooltip("Optional Animator trigger name for the monster recoiling in pain (e.g., 'Scream' or 'Recoil').")]
     public string banishAnimTrigger = "Scream";
+
+    [HideInInspector]
+    public bool isBossArenaMinion = false;
+
     public static System.Collections.Generic.List<MonsterAI> all = new System.Collections.Generic.List<MonsterAI>();
+
+    private NavMeshAgent agent;
+    private Animator animator;
+    private AudioSource loopAudioSource;
+
+    private bool isSprinting = false;
+    private bool isJumpscaring = false;
+    private bool isBanished = false;
+
+    private Vector3 initialSpawnPosition;
+    private Quaternion initialSpawnRotation;
+
+    // Animator Hashes
+    private readonly int AnimSpeed = Animator.StringToHash("Speed");
+    private readonly int AnimScream = Animator.StringToHash("Scream");
 
     void OnEnable()  { all.Add(this); }
     void OnDisable() { all.Remove(this); }
@@ -91,34 +99,45 @@ public class MonsterAI : MonoBehaviour
         lastHeardTime = Time.time;
         lastHeardType = type;
     }
+
     void Start()
     {
-        agent = GetComponent<NavMeshAgent>(); 
-        animator = GetComponent<Animator>(); 
-        loopAudioSource = GetComponent<AudioSource>(); 
+        agent = GetComponent<NavMeshAgent>();
+        animator = GetComponent<Animator>();
+        loopAudioSource = GetComponent<AudioSource>();
+
+        // Record spawn transform so Boss Arena monsters can warp back after a jumpscare
+        initialSpawnPosition = transform.position;
+        initialSpawnRotation = transform.rotation;
+
+        // Auto-detect if this monster is in the Conductor Boss scene
+        if (BossArenaPenaltyManager.Instance != null || FindFirstObjectByType<BossAI>() != null)
+        {
+            isBossArenaMinion = true;
+        }
 
         // Auto-find player if not assigned
-        if (playerTransform == null) 
+        if (playerTransform == null)
         {
-            GameObject playerObj = GameObject.FindGameObjectWithTag("Player"); 
-            if (playerObj != null) playerTransform = playerObj.transform; 
+            GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+            if (playerObj != null) playerTransform = playerObj.transform;
         }
 
-        // Auto-find central hub respawn point by tag if not assigned in Inspector
-        if (backroomsCenterPoint == null) 
+        // Auto-find Backrooms central hub respawn point by tag
+        if (backroomsCenterPoint == null)
         {
-            GameObject respawnObj = GameObject.FindGameObjectWithTag("Respawn"); 
-            if (respawnObj != null) backroomsCenterPoint = respawnObj.transform; 
+            GameObject respawnObj = GameObject.FindGameObjectWithTag("Respawn");
+            if (respawnObj != null) backroomsCenterPoint = respawnObj.transform;
         }
 
-        agent.speed = stalkSpeed; 
+        agent.speed = stalkSpeed;
     }
 
     void Update()
     {
-        if (playerTransform == null || isJumpscaring || isBanished) return; 
+        if (playerTransform == null || isJumpscaring || isBanished) return;
 
-        float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position); 
+        float distanceToPlayer = Vector3.Distance(transform.position, playerTransform.position);
         bool hears = Time.time - lastHeardTime < 0.15f && distanceToPlayer < hearDistance;
 
         if (hears && lastHeardType == requiredInstrument)
@@ -132,47 +151,50 @@ public class MonsterAI : MonoBehaviour
                     return;
                 }
             }
-            else banishTimer = 0f;
+            else
+            {
+                banishTimer = 0f;
+            }
 
             agent.speed = fleeSpeed;
             Flee();
             animator.SetFloat(AnimSpeed, agent.velocity.magnitude);
-            return;   // skip jumpscare and chase while the right instrument is playing
+            return; // Skip jumpscare and chase while the right instrument is playing
         }
 
         banishTimer = 0f;
 
-        // wrong instrument angers it
+        // Wrong instrument angers it
         if (hears && !isSprinting) TriggerFrenzySprint();
 
-        // restore the correct chase speed after fleeing
+        // Restore the correct chase speed after fleeing
         agent.speed = isSprinting ? sprintSpeed : stalkSpeed;
+
         // 1. Check Jumpscare Trigger
-        if (distanceToPlayer <= jumpscareDistance) 
+        if (distanceToPlayer <= jumpscareDistance)
         {
-            StartCoroutine(ExecuteJumpscareSequence()); 
-            return; 
+            StartCoroutine(ExecuteJumpscareSequence());
+            return;
         }
 
         // 2. Dynamic Pacing: Stalk -> Sudden Frenzy Sprint
-        if (distanceToPlayer <= sprintTriggerDistance && !isSprinting) 
+        if (distanceToPlayer <= sprintTriggerDistance && !isSprinting)
         {
-            TriggerFrenzySprint(); 
+            TriggerFrenzySprint();
         }
-        else if (distanceToPlayer > sprintTriggerDistance * 1.3f && isSprinting) 
+        else if (distanceToPlayer > sprintTriggerDistance * 1.3f && isSprinting)
         {
-            // Calm back down to stalking if player manages to gain significant distance
-            isSprinting = false; 
-            agent.speed = stalkSpeed; 
-            if (loopAudioSource != null) loopAudioSource.pitch = 1.0f; 
+            isSprinting = false;
+            agent.speed = stalkSpeed;
+            if (loopAudioSource != null) loopAudioSource.pitch = 1.0f;
         }
 
         // 3. Pursue Player
-        agent.SetDestination(playerTransform.position); 
+        agent.SetDestination(playerTransform.position);
 
         // 4. Update Animator Blend Tree / Transitions
-        float currentSpeed = agent.velocity.magnitude; 
-        animator.SetFloat(AnimSpeed, currentSpeed); 
+        float currentSpeed = agent.velocity.magnitude;
+        animator.SetFloat(AnimSpeed, currentSpeed);
     }
 
     private void Flee()
@@ -183,12 +205,11 @@ public class MonsterAI : MonoBehaviour
 
         Vector3 target = transform.position + away * fleeStep;
         if (NavMesh.SamplePosition(target, out NavMeshHit hit, 4f, NavMesh.AllAreas))
+        {
             agent.SetDestination(hit.position);
+        }
     }
-    /// <summary>
-    /// Call this from your instrument scripts when played near the monster.
-    /// Returns true if the instrument matched and banished the monster.
-    /// </summary>
+
     public bool TryBanishWithInstrument(InstrumentType playedInstrument)
     {
         if (isJumpscaring || isBanished) return false;
@@ -200,7 +221,6 @@ public class MonsterAI : MonoBehaviour
         }
         else
         {
-            // Wrong instrument played: agitate the monster into sprinting immediately
             if (!isSprinting) TriggerFrenzySprint();
             return false;
         }
@@ -210,10 +230,13 @@ public class MonsterAI : MonoBehaviour
     {
         isBanished = true;
 
-        // Progress bookkeeping for the "backrooms cleared" return teleport.
-        GameSession.MonstersDefeated++;
+        // Only count toward Backrooms completion if NOT in the Conductor Boss fight
+        if (!isBossArenaMinion)
+        {
+            GameSession.MonstersDefeated++;
+        }
 
-        // 1. Immediately disable movement and colliders so it can't hurt or block the player
+        // 1. Immediately disable movement and colliders
         if (agent != null && agent.enabled)
         {
             agent.isStopped = true;
@@ -224,7 +247,7 @@ public class MonsterAI : MonoBehaviour
         Collider col = GetComponent<Collider>();
         if (col != null) col.enabled = false;
 
-        // 2. Stop ambient loop audio and play the banishment sound
+        // 2. Stop ambient loop audio and play banishment SFX
         if (loopAudioSource != null) loopAudioSource.Stop();
 
         if (banishSfxClip != null)
@@ -239,17 +262,15 @@ public class MonsterAI : MonoBehaviour
             animator.SetTrigger(banishAnimTrigger);
         }
 
-        // 4. Spawn standalone particle burst at chest height so particles linger after monster vanishes
+        // 4. Spawn standalone particle burst at chest height
         if (banishParticlePrefab != null)
         {
             Vector3 vfxPosition = transform.position + Vector3.up * particleSpawnHeight;
             GameObject vfxInstance = Instantiate(banishParticlePrefab, vfxPosition, Quaternion.identity);
-            
-            // Auto-cleanup the particle object after 4 seconds
             Destroy(vfxInstance, 4f);
         }
 
-        // 5. Smoothly shrink and sink the monster into the floor over banishDuration
+        // 5. Smoothly shrink and sink the monster into the floor
         Vector3 initialScale = transform.localScale;
         Vector3 initialPos = transform.position;
         float elapsed = 0f;
@@ -259,32 +280,29 @@ public class MonsterAI : MonoBehaviour
             elapsed += Time.deltaTime;
             float progress = elapsed / banishDuration;
 
-            // Smoothly shrink scale to zero and sink slightly downward
             transform.localScale = Vector3.Lerp(initialScale, Vector3.zero, progress * progress);
             transform.position = Vector3.Lerp(initialPos, initialPos + Vector3.down * 0.5f, progress);
 
             yield return null;
         }
 
-        // 6. Destroy the monster object cleanly once shrunk
+        // 6. Destroy the monster (BossAI automatically detects null in activeWaveMonsters)
         Destroy(gameObject);
     }
 
     private void TriggerFrenzySprint()
     {
-        isSprinting = true; 
-        agent.speed = sprintSpeed; 
+        isSprinting = true;
+        agent.speed = sprintSpeed;
 
-        // Increase ambient loop pitch to heighten panic
-        if (loopAudioSource != null) 
+        if (loopAudioSource != null)
         {
-            loopAudioSource.pitch = 1.25f; 
+            loopAudioSource.pitch = 1.25f;
         }
 
-        // Play aggro screech
-        if (aggroScreechClip != null) 
+        if (aggroScreechClip != null)
         {
-            AudioSource.PlayClipAtPoint(aggroScreechClip, transform.position, 1.0f); 
+            AudioSource.PlayClipAtPoint(aggroScreechClip, transform.position, 1.0f);
         }
     }
 
@@ -292,7 +310,7 @@ public class MonsterAI : MonoBehaviour
     {
         isJumpscaring = true;
 
-        // 1. Stop NavMesh movement and disable collider so it doesn't push the player
+        // 1. Stop NavMesh movement and disable collider
         agent.isStopped = true;
         agent.velocity = Vector3.zero;
         agent.enabled = false;
@@ -307,7 +325,7 @@ public class MonsterAI : MonoBehaviour
         CharacterController charController = playerTransform.GetComponent<CharacterController>();
         if (playerController != null) playerController.enabled = false;
 
-        // 3. Find the active VR Camera (prioritizes child camera under playerTransform)
+        // 3. Find the active VR Camera
         Camera playerCam = playerTransform.GetComponentInChildren<Camera>();
         Transform camTransform = playerCam != null ? playerCam.transform : (Camera.main != null ? Camera.main.transform : playerTransform);
 
@@ -320,49 +338,89 @@ public class MonsterAI : MonoBehaviour
             AudioSource.PlayClipAtPoint(jumpscareScreamClip, camTransform.position, 1.0f);
         }
 
-        // 5. Keep the monster locked in front of the player's gaze and facing them for the duration
+        // 5. Keep the monster locked in front of the player's gaze and facing them
         float elapsed = 0f;
         while (elapsed < jumpscareDuration)
         {
             elapsed += Time.deltaTime;
 
-            // Get horizontal direction the player's head is currently looking
             Vector3 flatForward = camTransform.forward;
             flatForward.y = 0f;
             if (flatForward.sqrMagnitude < 0.001f) flatForward = playerTransform.forward;
             flatForward.Normalize();
 
-            // Position directly in front of the player's face
             Vector3 scarePosition = camTransform.position + (flatForward * faceSnapDistance);
             scarePosition.y = camTransform.position.y + faceHeightOffset;
             transform.position = scarePosition;
 
-            // Rotate monster to face the player + apply model forward offset
             Quaternion lookRotation = Quaternion.LookRotation(-flatForward, Vector3.up);
             transform.rotation = lookRotation * Quaternion.Euler(0f, modelForwardYawOffset, 0f);
 
             yield return null;
         }
 
-        // 6. Teleport Player back to the center of the Backrooms
-        if (backroomsCenterPoint != null)
+        // 6. Apply Scene-Specific Teleport & Reset Behavior
+        if (isBossArenaMinion)
         {
-            if (charController != null) charController.enabled = false;
+            // BOSS SCENE: Teleport player to back of hall + spawn escalating props
+            if (BossArenaPenaltyManager.Instance != null)
+            {
+                BossArenaPenaltyManager.Instance.TriggerPlayerHitPenalty(playerTransform);
+            }
+            else if (backroomsCenterPoint != null)
+            {
+                TeleportPlayerTo(backroomsCenterPoint, charController);
+            }
 
-            playerTransform.position = backroomsCenterPoint.position;
-            playerTransform.rotation = backroomsCenterPoint.rotation;
+            // Re-enable player controls
+            if (playerController != null) playerController.enabled = true;
 
-            if (charController != null) charController.enabled = true;
+            // Warp monster back to its stage spawn point to keep hunting
+            transform.position = initialSpawnPosition;
+            transform.rotation = initialSpawnRotation;
+            isSprinting = false;
+
+            if (col != null) col.enabled = true;
+            if (agent != null)
+            {
+                agent.enabled = true;
+                agent.Warp(initialSpawnPosition);
+                agent.speed = stalkSpeed;
+                agent.isStopped = false;
+            }
+            if (loopAudioSource != null)
+            {
+                loopAudioSource.pitch = 1.0f;
+                loopAudioSource.Play();
+            }
+
+            isJumpscaring = false;
+            yield break;
         }
         else
         {
-            Debug.LogWarning("[MonsterAI] No Backrooms Center Point assigned or tagged 'Respawn'!");
+            // BACKROOMS SCENE: Teleport player to central hub & despawn monster
+            if (backroomsCenterPoint != null)
+            {
+                TeleportPlayerTo(backroomsCenterPoint, charController);
+            }
+            else
+            {
+                Debug.LogWarning("[MonsterAI] No Backrooms Center Point assigned or tagged 'Respawn'!");
+            }
+
+            if (playerController != null) playerController.enabled = true;
+            Destroy(gameObject);
         }
+    }
 
-        // Re-enable player controls
-        if (playerController != null) playerController.enabled = true;
+    private void TeleportPlayerTo(Transform destination, CharacterController charController)
+    {
+        if (charController != null) charController.enabled = false;
 
-        // 7. Despawn the monster
-        Destroy(gameObject);
+        playerTransform.position = destination.position;
+        playerTransform.rotation = destination.rotation;
+
+        if (charController != null) charController.enabled = true;
     }
 }

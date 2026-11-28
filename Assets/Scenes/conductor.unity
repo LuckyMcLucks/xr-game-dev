@@ -172,6 +172,37 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.1, y: 1, z: 5}
   m_Center: {x: 2.38, y: 0, z: 0}
+--- !u!1 &450502360
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 450502361}
+  m_Layer: 0
+  m_Name: Start  Pos
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &450502361
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 450502360}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.9, z: -30}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &451688964
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -276,6 +307,67 @@ Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: bb4466292c89ccc41aaf57249a92b5fd, type: 3}
   m_PrefabInstance: {fileID: 451688964}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &520690092
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 520690094}
+  - component: {fileID: 520690093}
+  m_Layer: 0
+  m_Name: ArenaPenalty
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &520690093
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 520690092}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0ad21ccd9ff07f4cbf3c670877847e4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BossArenaPenaltyManager
+  arenaStartPoint: {fileID: 450502361}
+  playerTransform: {fileID: 0}
+  teleportPenaltySfx: {fileID: 0}
+  propPrefabs:
+  - {fileID: 9122899413508492740, guid: d6d1931b4ae9b58488eae05ad45b1e31, type: 3}
+  - {fileID: 1955130905411648171, guid: 2578e3dd441d99343a39a55caee93320, type: 3}
+  - {fileID: 2922941281273579375, guid: 39c8cd45c3bc06741a8405d94e7f4aad, type: 3}
+  initialPropSpawnCount: 3
+  extraPropsPerHit: 2
+  maxTotalProps: 45
+  spawnZoneCenter: {fileID: 0}
+  spawnAreaSize: {x: 70, y: 13, z: 38}
+  floorLayerMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  safeRadiusAroundStart: 2.5
+  uprightRandomOrientation: 1
+--- !u!4 &520690094
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 520690092}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: -15.05}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &848302630
 GameObject:
   m_ObjectHideFlags: 0
@@ -663,7 +755,7 @@ Transform:
   m_GameObject: {fileID: 1145375332}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.9, z: -26}
+  m_LocalPosition: {x: 0, y: 0.9, z: -30}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1908,8 +2000,8 @@ MonoBehaviour:
   bossSpawnPoint: {fileID: 1881535684}
   stageSpotlight: {fileID: 948487831}
   playerTransform: {fileID: 0}
-  pianoVanishVfxPrefab: {fileID: 5072087411467350886, guid: 2d738f8ce16aace408e214801ae5cbfd, type: 3}
-  bossSpawnVfxPrefab: {fileID: 5072087411467350886, guid: 2d738f8ce16aace408e214801ae5cbfd, type: 3}
+  pianoVanishVfxPrefab: {fileID: 239301086368337551, guid: 1dd5dce388b43db4aa3cc4af0e5864a3, type: 3}
+  bossSpawnVfxPrefab: {fileID: 6321464003014305698, guid: e6be54fc629b3394d9895399e733b405, type: 3}
   vfxHeightOffset: 1
   bossAppearDelay: 0.25
   vfxLifetime: 4
@@ -2077,6 +2169,8 @@ SceneRoots:
   m_Roots:
   - {fileID: 1145375335}
   - {fileID: 948487832}
+  - {fileID: 520690094}
   - {fileID: 1758828895}
+  - {fileID: 450502361}
   - {fileID: 1881535684}
   - {fileID: 1266237859}

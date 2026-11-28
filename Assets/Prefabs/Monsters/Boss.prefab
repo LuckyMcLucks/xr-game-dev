@@ -274,12 +274,12 @@ MonoBehaviour:
   batonAttackTelegraphSfx: {fileID: 0}
   arenaLights: []
   battleBgmSource: {fileID: 0}
-  blackoutSfx: {fileID: 0}
+  blackoutSfx: {fileID: 8300000, guid: 6a680be4e5114f24fbb2cc758e9e28d2, type: 3}
   blackoutDuration: 7
   currentWeaknessInstrument: 0
   bossWeaknessLight: {fileID: 0}
   vulnerableDuration: 8
-  bossStaggerSfx: {fileID: 0}
+  bossStaggerSfx: {fileID: 8300000, guid: b9629935ce7d2e2449865cf0a3332539, type: 3}
   playerTransform: {fileID: 0}
   shieldVisual: {fileID: 0}
 --- !u!4 &2252766491218085655 stripped

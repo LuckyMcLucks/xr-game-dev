@@ -25,11 +25,9 @@ public class SonicWaveProjectile : MonoBehaviour
                 AudioSource.PlayClipAtPoint(hitPlayerSfx, other.transform.position, 1.0f);
             }
 
-            // Optional: knock the player backward slightly in VR to disorient them
-            CharacterController cc = other.GetComponent<CharacterController>();
-            if (cc != null)
+            if (BossArenaPenaltyManager.Instance != null)
             {
-                cc.Move(transform.forward * 1.5f);
+                BossArenaPenaltyManager.Instance.TriggerPlayerHitPenalty(other.transform);
             }
 
             Destroy(gameObject);
